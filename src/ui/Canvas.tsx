@@ -32,14 +32,14 @@ type Drag =
   | { kind: 'pan'; startX: number; startY: number; view: View; moved: boolean }
   | { kind: 'node'; id: string; moved: boolean };
 
-const NODE_RADIUS = 11;
+const NODE_RADIUS = 13;
 const MEMBER_RADIUS = 8;
 
 export function Canvas() {
   const { state, dispatch, solution } = useStore();
   const { tool, toolOptions, selection, view: options } = state;
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 800, height: 600 });
+  const [size, setSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({ scale: 60, ox: 100, oy: 400 });
   const [hover, setHover] = useState<Hit | null>(null);
   const [cursor, setCursor] = useState<{ screen: Point; world: Point } | null>(null);
@@ -67,14 +67,21 @@ export function Canvas() {
   }, []);
 
   // Fit the model when a project is loaded, Fit is requested or the canvas first gets a size.
+  // Until the user pans or zooms, the view also re-fits when the canvas is resized.
   const sized = size.width > 0 && size.height > 0;
   const fitKey = `${state.loadCount}:${sized}`;
   const lastFit = useRef('');
+  const autoFit = useRef(true);
   useEffect(() => {
-    if (!sized || lastFit.current === fitKey) return;
-    lastFit.current = fitKey;
-    setView(fitView(state.project, size.width, size.height));
-  }, [fitKey, sized, size.width, size.height, state.project]);
+    if (!sized) return;
+    if (lastFit.current !== fitKey) {
+      lastFit.current = fitKey;
+      autoFit.current = true;
+    }
+    if (autoFit.current) setView(fitView(state.project, size.width, size.height));
+    // The project is deliberately not a dependency: editing must not move the view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitKey, sized, size.width, size.height]);
 
   // Leaving the member tool or loading a project cancels a half-drawn member.
   useEffect(() => setPending(null), [tool, state.loadCount]);
@@ -282,6 +289,7 @@ export function Canvas() {
       const [a, b] = [...pointers.current.values()];
       const distance = Math.hypot(a[0] - b[0], a[1] - b[1]);
       const centre: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      autoFit.current = false;
       setView(zoomAt(pinch.current.view, centre[0], centre[1], distance / pinch.current.distance));
       return;
     }
@@ -290,7 +298,10 @@ export function Canvas() {
     if (d?.kind === 'pan') {
       const dx = sx - d.startX;
       const dy = sy - d.startY;
-      if (Math.hypot(dx, dy) > 3) d.moved = true;
+      if (Math.hypot(dx, dy) > 3) {
+        d.moved = true;
+        autoFit.current = false;
+      }
       setView({ ...d.view, ox: d.view.ox + dx, oy: d.view.oy + dy });
       return;
     }
@@ -326,6 +337,7 @@ export function Canvas() {
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
+      autoFit.current = false;
       setView((v) => zoomAt(v, e.clientX - rect.left, e.clientY - rect.top, factor));
     };
     el.addEventListener('wheel', onWheel, { passive: false });

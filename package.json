@@ -15,7 +15,9 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc -b",
     "check": "npm run lint && npm run test && npm run build",
-    "validation": "WRITE_VALIDATION=1 vitest run tests/validation"
+    "validation": "WRITE_VALIDATION=1 vitest run tests/validation",
+    "e2e": "node scripts/e2e.mjs",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "jspdf": "^4.2.1",
@@ -34,6 +36,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.14.0",
+    "playwright": "^1.65.1",
     "prettier": "^3.10.1",
     "typescript": "~6.0",
     "typescript-eslint": "^8.72.2",
