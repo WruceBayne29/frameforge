@@ -10,17 +10,17 @@
   moment loads, N/V/M + deflection stations, instability detection. 99 % coverage.
 - Validation suite: 22 textbook problems, 103 quantities, all within 0.1 % → `VALIDATION.md`
   (regenerate with `npm run validation`).
-- `src/design-codes/`: IS 800:2007 member check + ISMB/ISMC section table (done early, by subagent;
-  not wired into the UI yet).
+- `src/design-codes/`: IS 800:2007 member check + ISMB/ISMC section table (by subagent, verified).
+- `src/model/` (project model, unit conversion, pure edit ops, design wiring), `src/examples/`
+  (9 structures incl. transmission tower), docs/THEORY.md + CONTRIBUTING + templates (by subagent).
 
 ## In progress
-- Milestone 2: MVP UI + first deploy.
-- Subagent writing docs/THEORY.md, CONTRIBUTING.md, issue templates (uncommitted until it reports).
+- Milestone 2/3: MVP UI is rendering (canvas, diagrams, deformed shape, reactions, examples,
+  undo/redo, theme). Editing tools exist in `src/ui/Canvas.tsx` but have no toolbar yet.
 
 ## Exact next step
-- Write `src/model/` (project model in kN/m/GPa/cm units → solver model), `src/examples/`, and a
-  basic `src/ui/` that loads an example and draws deformed shape + BMD/SFD. Push, confirm the
-  Pages deploy at https://wrucebayne29.github.io/frameforge/ loads.
+- Confirm the Pages deploy loads. Then add `src/ui/Toolbar.tsx` (tool buttons + tool options),
+  `src/ui/SidePanel.tsx` (Properties / Tables / Results / Design tabs) and keyboard shortcuts.
 
 ## Milestone checklist
 - [x] 1. Solver core + validation suite

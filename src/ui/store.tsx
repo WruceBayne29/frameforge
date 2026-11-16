@@ -46,7 +46,7 @@ export interface AppState {
   tool: Tool;
   toolOptions: ToolOptions;
   view: ViewOptions;
-  /** Incremented whenever a whole new project is loaded, so the canvas can re-fit. */
+  /** Incremented whenever the canvas should re-fit the model (new project, Fit button). */
   loadCount: number;
 }
 
@@ -58,7 +58,8 @@ export type Action =
   | { type: 'select'; selection: Selection }
   | { type: 'tool'; tool: Tool }
   | { type: 'toolOptions'; options: Partial<ToolOptions> }
-  | { type: 'view'; view: Partial<ViewOptions> };
+  | { type: 'view'; view: Partial<ViewOptions> }
+  | { type: 'fit' };
 
 const HISTORY_LIMIT = 200;
 
@@ -159,6 +160,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, toolOptions: { ...state.toolOptions, ...action.options } };
     case 'view':
       return { ...state, view: { ...state.view, ...action.view } };
+    case 'fit':
+      return { ...state, loadCount: state.loadCount + 1 };
   }
 }
 
@@ -207,7 +210,6 @@ export function StoreProvider({ initial, children }: { initial: Project; childre
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useStore(): StoreValue {
   const value = useContext(StoreContext);
   if (!value) throw new Error('useStore must be used inside <StoreProvider>');
