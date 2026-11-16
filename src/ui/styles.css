@@ -636,7 +636,7 @@ button.ghost:hover:not(:disabled),
   position: absolute;
   left: 12px;
   right: 12px;
-  bottom: 30px;
+  bottom: 52px;
   padding: 10px 14px;
   border-radius: 10px;
   background: var(--danger-soft);
@@ -1332,5 +1332,37 @@ button.icon {
 @media (max-width: 860px) {
   .shortcut-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+.canvas-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 6px 4px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.canvas-controls button {
+  min-height: 26px;
+  font-weight: 600;
+}
+
+@media (max-width: 860px) {
+  .canvas-controls {
+    gap: 6px;
+    padding-left: 8px;
+  }
+  .canvas-controls .slider span {
+    display: none;
+  }
+  .canvas-controls .slider input {
+    width: 56px;
   }
 }

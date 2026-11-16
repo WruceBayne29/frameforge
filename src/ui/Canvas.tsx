@@ -522,6 +522,7 @@ export function Canvas() {
           hover={hover?.target ?? null}
           showLoads={options.loads}
           showLabels={options.labels}
+          showMemberLabels={options.labels && !(options.utilisation && !!shown.result)}
           memberColors={memberColors}
           dimmed={false}
           errorNode={shown.error?.nodeId}

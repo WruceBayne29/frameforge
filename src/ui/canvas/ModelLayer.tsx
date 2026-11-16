@@ -76,6 +76,7 @@ interface Props {
   hover: Selection;
   showLoads: boolean;
   showLabels: boolean;
+  showMemberLabels: boolean;
   /** Stroke colour per member (utilisation view). */
   memberColors?: Record<string, string>;
   dimmed: boolean;
@@ -239,6 +240,7 @@ export const ModelLayer = memo(function ModelLayer({
   hover,
   showLoads,
   showLabels,
+  showMemberLabels,
   memberColors,
   dimmed,
   errorNode,
@@ -308,7 +310,7 @@ export const ModelLayer = memo(function ModelLayer({
             />
             {g.member.type === 'frame' && g.member.releaseI && release(p1, p2)}
             {g.member.type === 'frame' && g.member.releaseJ && release(p2, p1)}
-            {showLabels && (
+            {showMemberLabels && (
               <text
                 className="member-label"
                 x={(p1[0] + p2[0]) / 2 - g.sin * 11}

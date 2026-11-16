@@ -46,6 +46,16 @@ export function ViewBar() {
       {toggle('utilisation', 'Utilisation', 'Colour members by IS 800 utilisation ratio (U)')}
       {toggle('loads', 'Loads', 'Show applied loads')}
       {toggle('labels', 'Labels', 'Show node and member labels')}
+    </div>
+  );
+}
+
+/** Floating scale sliders and the Fit button, shown over the bottom-right of the canvas. */
+export function CanvasControls() {
+  const { state, dispatch } = useStore();
+  const v = state.view;
+  return (
+    <div className="canvas-controls">
       <label className="slider" title="Deformation scale">
         <span>Deform ×{v.deformScale.toFixed(1)}</span>
         <input

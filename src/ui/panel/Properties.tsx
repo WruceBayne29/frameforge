@@ -6,6 +6,7 @@ import {
   memberProps,
   moveNode,
   setSupport,
+  checkLabel,
   updateMember,
   utilisationColor,
 } from '../../model';
@@ -274,8 +275,8 @@ function MemberProperties({ id }: { id: string }) {
             </thead>
             <tbody>
               {design.result.checks.map((c) => (
-                <tr key={c.id} className={c.ok ? '' : 'fail'} title={c.clause}>
-                  <td>{c.name}</td>
+                <tr key={c.id} className={c.ok ? '' : 'fail'} title={`${c.name} — ${c.clause}`}>
+                  <td>{checkLabel(c.id, c.name)}</td>
                   <td>
                     {fmt(c.demand)} {c.unit}
                   </td>

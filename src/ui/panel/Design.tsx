@@ -1,5 +1,5 @@
 import { STEEL_GRADES } from '../../design-codes';
-import { utilisationColor } from '../../model';
+import { checkLabel, utilisationColor } from '../../model';
 import { useStore } from '../store';
 
 export function Design() {
@@ -82,8 +82,12 @@ export function Design() {
                     <td>{member.id}</td>
                     <td>{member.section}</td>
                     <td>{design?.result.sectionClass ?? '–'}</td>
-                    <td title={governing?.clause}>
-                      {governing?.name ?? (design ? 'No load' : 'Custom section')}
+                    <td title={governing ? `${governing.name} — ${governing.clause}` : undefined}>
+                      {governing
+                        ? checkLabel(governing.id, governing.name)
+                        : design
+                          ? 'No load'
+                          : 'Custom section'}
                     </td>
                     <td>
                       {design ? (

@@ -24,8 +24,8 @@ export const toWorld = (v: View, sx: number, sy: number): Point => [
 /** View that fits the whole model in the viewport with padding for loads and diagrams. */
 export function fitView(project: Project, width: number, height: number): View {
   const b = modelBounds(project);
-  const padX = Math.min(110, width * 0.16);
-  const padY = Math.min(110, height * 0.2);
+  const padX = Math.min(150, width * 0.18);
+  const padY = Math.min(125, height * 0.2);
   const w = Math.max(b.maxX - b.minX, 1e-6);
   const h = Math.max(b.maxY - b.minY, 1e-6);
   const scale = Math.max(Math.min((width - 2 * padX) / w, (height - 2 * padY) / h, 400), 1);

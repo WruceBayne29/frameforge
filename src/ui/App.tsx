@@ -13,7 +13,7 @@ import { notify, Toasts } from './toast';
 import { Toolbar } from './Toolbar';
 import { TopBar } from './TopBar';
 import { Tour } from './Tour';
-import { ViewBar } from './ViewBar';
+import { CanvasControls, ViewBar } from './ViewBar';
 import { fmt, mm } from './format';
 import './styles.css';
 
@@ -183,6 +183,7 @@ function Stage() {
       <ViewBar />
       <div className="canvas-wrap">
         <Canvas />
+        {!empty && <CanvasControls />}
         {empty && (
           <div className="empty-hint">
             <strong>Empty model</strong>
