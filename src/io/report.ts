@@ -172,6 +172,31 @@ function drawFigure(
       const colour = kind === 'N' && mean < 0 ? COMPRESSION : DIAGRAM[kind];
       doc.setFillColor(...colour);
       doc.setDrawColor(...colour);
+      const s0 = r.stations[0];
+      if (
+        kind === 'N' &&
+        r.stations.every((s) => Math.abs(s.N - s0.N) < 1e-6 * Math.max(peaks.N, 1e-9))
+      ) {
+        // Constant axial force: draw the member itself, weighted by the force.
+        const p1 = along(r, start, 0, 0);
+        const p2 = along(r, start, r.length, 0);
+        doc.setGState(doc.GState({ opacity: 0.45 }));
+        doc.setLineWidth(0.8 + 2 * (Math.abs(s0.N) / peaks.N));
+        doc.line(p1[0], p1[1], p2[0], p2[1]);
+        doc.setGState(doc.GState({ opacity: 1 }));
+        if (Math.abs(s0.N) >= (dense ? 0.3 : 0.03) * peaks.N) {
+          const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) || 1;
+          const side = (p2[0] - p1[0]) / len > 0 ? -1 : 1;
+          doc.setTextColor(...colour);
+          doc.text(
+            num(s0.N),
+            (p1[0] + p2[0]) / 2 - ((p2[1] - p1[1]) / len) * side * 2.6,
+            (p1[1] + p2[1]) / 2 + ((p2[0] - p1[0]) / len) * side * 2.6 + 0.8,
+            { align: 'center' },
+          );
+        }
+        continue;
+      }
       doc.setGState(doc.GState({ opacity: 0.18 }));
       polygon(doc, [along(r, start, 0, 0), ...outline, along(r, start, r.length, 0)], 'F');
       doc.setGState(doc.GState({ opacity: 1 }));
@@ -181,16 +206,14 @@ function drawFigure(
       const first = r.stations[0];
       const last = r.stations[r.stations.length - 1];
       const candidates: Station[] =
-        kind === 'N' && Math.abs(first.N - last.N) < 1e-6 * Math.max(peaks.N, 1e-9)
-          ? [r.stations[Math.floor(r.stations.length / 2)]]
-          : kind === 'M'
-            ? [
-                first,
-                last,
-                r.stations.reduce((p, q) => (q.M > p.M ? q : p)),
-                r.stations.reduce((p, q) => (q.M < p.M ? q : p)),
-              ]
-            : [first, last];
+        kind === 'M'
+          ? [
+              first,
+              last,
+              r.stations.reduce((p, q) => (q.M > p.M ? q : p)),
+              r.stations.reduce((p, q) => (q.M < p.M ? q : p)),
+            ]
+          : [first, last];
       const shown: Station[] = [];
       doc.setTextColor(...colour);
       for (const s of candidates) {

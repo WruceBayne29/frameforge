@@ -272,7 +272,8 @@ export const ModelLayer = memo(function ModelLayer({
             key={s.node}
             at={toScreen(view, node.x, node.y)}
             kind={s.kind}
-            angle={supportAngle(node, project)}
+            // Only a fixed support turns to face its member; pins and rollers stay upright.
+            angle={s.kind === 'fixed' ? supportAngle(node, project) : 0}
           />
         );
       })}

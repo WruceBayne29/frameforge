@@ -56,23 +56,57 @@ function Diagram({
 
   const outline = stations.map((s) => screen(s.x, ordinate(s)));
   const polygon = [screen(0, 0), ...outline, screen(member.length, 0)];
+
   const mean = stations.reduce((sum, s) => sum + s[kind], 0) / stations.length;
   const signClass = kind === 'N' ? (mean >= 0 ? 'tension' : 'compression') : '';
+  const first = stations[0];
+  const last = stations[stations.length - 1];
+  const constant = stations.every(
+    (s) => Math.abs(s[kind] - first[kind]) < 1e-6 * Math.max(peak, 1e-9),
+  );
+
+  // A constant axial force (every truss member) reads best as the member itself, coloured by
+  // sign and weighted by magnitude; offset bands would overlap each other in a truss.
+  if (kind === 'N' && constant) {
+    const a = screen(0, 0);
+    const b = screen(member.length, 0);
+    const value = first.N;
+    const mid = screen(member.length / 2, 0);
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const nx = -(b[1] - a[1]) / len;
+    const ny = (b[0] - a[0]) / len;
+    const side = ny > 0 ? -1 : 1;
+    return (
+      <g className={`diagram diagram-N ${signClass}`}>
+        <line
+          className="axial-bar"
+          x1={a[0]}
+          y1={a[1]}
+          x2={b[0]}
+          y2={b[1]}
+          strokeWidth={4 + 10 * (Math.abs(value) / peak)}
+        />
+        {Math.abs(value) >= labelThreshold * peak && (
+          <text
+            className="diagram-label"
+            x={mid[0] + nx * side * 13}
+            y={mid[1] + ny * side * 13 + 4}
+            textAnchor="middle"
+          >
+            {fmt(value)}
+          </text>
+        )}
+      </g>
+    );
+  }
 
   // Label the ends and the extremes, skipping negligible values and near-duplicates.
   const candidates: Station[] = [];
-  const first = stations[0];
-  const last = stations[stations.length - 1];
-  const constant = Math.abs(first[kind] - last[kind]) < 1e-6 * Math.max(peak, 1e-9);
-  if (kind === 'N' && constant) {
-    candidates.push(stations[Math.floor(stations.length / 2)]);
-  } else {
-    candidates.push(first, last);
-    if (kind === 'M') {
-      const hi = stations.reduce((a, b) => (b.M > a.M ? b : a));
-      const lo = stations.reduce((a, b) => (b.M < a.M ? b : a));
-      candidates.push(hi, lo);
-    }
+  candidates.push(first, last);
+  if (kind === 'M') {
+    const hi = stations.reduce((a, b) => (b.M > a.M ? b : a));
+    const lo = stations.reduce((a, b) => (b.M < a.M ? b : a));
+    candidates.push(hi, lo);
   }
   const labels: Station[] = [];
   for (const s of candidates) {
