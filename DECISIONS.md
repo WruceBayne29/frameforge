@@ -14,3 +14,19 @@ Calls made autonomously while building, newest last.
    general, and keeps the global DOF count at 3 per node.
 7. **Unrestrained zero-stiffness rotations are auto-fixed** (e.g. pure-truss joints), so trusses
    don't need a fake rotational restraint. Genuine mechanisms still raise a clear error.
+8. **SVG canvas, no canvas/WebGL library** — models are small (hundreds of members), SVG gives crisp
+   text, CSS theming and easy hit-testing; pan/zoom is a manual world→screen transform.
+9. **Single load case, no load combinations** — keeps the UI learnable; factored loads are entered
+   directly. Load combinations are on the roadmap.
+10. **Design check uses the analysis loads as design loads** and one steel grade / K factor per
+    project. Members with custom sections are skipped (no Zp, r available).
+11. **Examples assume laterally restrained compression flanges for beams/frames** (slab or purlins),
+    and trusses use I/channel sections because the table has no angles. Tower X-bracing is connected
+    at the crossing to halve buckling lengths. All examples pass their IS 800 check (test-enforced).
+12. **Share links = deflate + base64url of the project JSON in the URL fragment** — nothing is sent
+    to a server; the largest example fits in < 4000 characters.
+13. **PDF via jsPDF with hand-drawn vector figures** (lazy-loaded chunk) instead of rasterising the
+    SVG — sharper output and it works in Node, so the report is unit-tested.
+14. **Loading an example / file is undoable** rather than guarded by a confirm dialog.
+15. **The in-app browser could not open the public Pages URL** (site approval needed, owner AFK), so
+    the live deploy is verified with curl and Playwright instead.

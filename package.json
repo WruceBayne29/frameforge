@@ -18,6 +18,8 @@
     "validation": "WRITE_VALIDATION=1 vitest run tests/validation"
   },
   "dependencies": {
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

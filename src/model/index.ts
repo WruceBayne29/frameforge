@@ -6,3 +6,4 @@ export { nextId } from './ids';
 export { DEFAULT_DESIGN, DEFAULT_SECTION, emptyProject } from './types';
 export type * from './types';
 export * from './edit';
+export * from './display';

@@ -14,23 +14,28 @@
 - `src/model/` (project model, unit conversion, pure edit ops, design wiring), `src/examples/`
   (9 structures incl. transmission tower), docs/THEORY.md + CONTRIBUTING + templates (by subagent).
 
+- **Milestones 2–8 implemented in the UI**: MVP deployed; editor (tools, snap, undo/redo, tables);
+  results view (deformed + sliders, N/V/M, reactions, tooltips); IS 800 utilisation colours;
+  9 examples; PDF report (`src/io/report.ts`), JSON save/load, share URL (`#m=`), autosave;
+  dark/light, responsive CSS, shortcuts, help dialog, onboarding tour.
+
 ## In progress
-- Milestone 2/3: MVP UI is rendering (canvas, diagrams, deformed shape, reactions, examples,
-  undo/redo, theme). Editing tools exist in `src/ui/Canvas.tsx` but have no toolbar yet.
+- Playwright end-to-end script against the live site + README screenshots/GIF.
 
 ## Exact next step
-- Confirm the Pages deploy loads. Then add `src/ui/Toolbar.tsx` (tool buttons + tool options),
-  `src/ui/SidePanel.tsx` (Properties / Tables / Results / Design tabs) and keyboard shortcuts.
+- `npm i -D playwright`, write `scripts/e2e.mjs` (click through every feature on the live URL) and
+  `scripts/screenshots.mjs` (docs/screenshots/*.png + hero GIF). Then write the full README,
+  LINKEDIN_POST.md, CV_BULLETS.md. Then self-review + stretch features (influence lines, modal).
 
 ## Milestone checklist
 - [x] 1. Solver core + validation suite
-- [ ] 2. MVP deploy
-- [ ] 3. Interactive editor
-- [ ] 4. Full results view
-- [ ] 5. IS 800:2007 design check
-- [ ] 6. Example library
-- [ ] 7. Export (PDF / JSON / URL)
-- [ ] 8. Polish
+- [x] 2. MVP deploy
+- [x] 3. Interactive editor
+- [x] 4. Full results view
+- [x] 5. IS 800:2007 design check
+- [x] 6. Example library
+- [x] 7. Export (PDF / JSON / URL)
+- [x] 8. Polish
 - [ ] Final docs & deliverables
 - [ ] Self-review on live site
 - [ ] Stretch features

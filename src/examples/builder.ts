@@ -75,11 +75,11 @@ export function buildProject(
     },
     nodal: (node, fx, fy, mz = 0) => addLoad({ kind: 'nodal', node, fx, fy, mz }),
     udl: (member, w, direction = 'globalY') =>
-      addLoad({ kind: 'distributed', member, direction, w1: direction === 'globalY' ? -w : w }),
+      addLoad({ kind: 'distributed', member, direction, w1: direction === 'globalY' ? 0 - w : w }),
     distributed: (member, w1, w2, a, b) =>
-      addLoad({ kind: 'distributed', member, direction: 'globalY', w1: -w1, w2: -w2, a, b }),
+      addLoad({ kind: 'distributed', member, direction: 'globalY', w1: 0 - w1, w2: 0 - w2, a, b }),
     point: (member, P, a, direction = 'globalY') =>
-      addLoad({ kind: 'point', member, direction, P: direction === 'globalY' ? -P : P, a }),
+      addLoad({ kind: 'point', member, direction, P: direction === 'globalY' ? 0 - P : P, a }),
     custom: (section) => {
       project.customSections.push(section);
     },

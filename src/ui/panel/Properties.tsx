@@ -7,12 +7,12 @@ import {
   moveNode,
   setSupport,
   updateMember,
+  utilisationColor,
 } from '../../model';
 import type { MemberType, Project, SupportKind } from '../../model';
 import { NumberField, Row, SectionSelect, TextField } from '../fields';
 import { fmt, mm } from '../format';
 import { useStore } from '../store';
-import { utilisationColor } from '../canvas/ResultsLayer';
 import { LoadEditor } from './LoadEditor';
 
 const SUPPORT_OPTIONS: Array<{ id: SupportKind | 'none'; label: string }> = [

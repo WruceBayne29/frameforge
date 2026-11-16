@@ -8,12 +8,14 @@ import {
   deleteNode,
   memberProps,
   moveNode,
+  resultScales,
   setSupport,
   splitMember,
+  utilisationColor,
 } from '../model';
 import type { Project } from '../model';
 import { ModelLayer, memberGeometries } from './canvas/ModelLayer';
-import { ResultsLayer, resultScales, utilisationColor } from './canvas/ResultsLayer';
+import { ResultsLayer } from './canvas/ResultsLayer';
 import type { Point, View } from './canvas/view';
 import { distanceToSegment, fitView, niceStep, toScreen, toWorld, zoomAt } from './canvas/view';
 import { fmt, mm } from './format';
@@ -497,6 +499,7 @@ export function Canvas() {
             deformed={options.deformed}
             reactions={options.reactions}
             utilisation={options.utilisation}
+            labels={options.labels}
             scales={scales}
           />
         )}

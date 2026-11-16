@@ -1,3 +1,4 @@
+import { modelBounds } from '../../model';
 import type { Project } from '../../model';
 
 /** Maps world coordinates (m, y up) to screen pixels (y down). */
@@ -19,34 +20,6 @@ export const toWorld = (v: View, sx: number, sy: number): Point => [
   (sx - v.ox) / v.scale,
   (v.oy - sy) / v.scale,
 ];
-
-export interface Bounds {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
-
-export function modelBounds(project: Project): Bounds {
-  if (project.nodes.length === 0) return { minX: -2, minY: -2, maxX: 10, maxY: 6 };
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const n of project.nodes) {
-    minX = Math.min(minX, n.x);
-    minY = Math.min(minY, n.y);
-    maxX = Math.max(maxX, n.x);
-    maxY = Math.max(maxY, n.y);
-  }
-  return { minX, minY, maxX, maxY };
-}
-
-/** Characteristic size of the model, used to scale diagrams and deformations. */
-export function modelSize(project: Project): number {
-  const b = modelBounds(project);
-  return Math.max(b.maxX - b.minX, b.maxY - b.minY, 1);
-}
 
 /** View that fits the whole model in the viewport with padding for loads and diagrams. */
 export function fitView(project: Project, width: number, height: number): View {

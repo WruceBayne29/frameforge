@@ -109,16 +109,27 @@ function validSelection(project: Project, selection: Selection): Selection {
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case 'load':
+    case 'load': {
+      // Pick sensible view defaults for the new model: axial forces for pure trusses,
+      // and no id labels on dense models where they would only add clutter.
+      const members = action.project.members;
+      const allTruss = members.length > 0 && members.every((m) => m.type === 'truss');
       return {
         ...state,
         project: action.project,
-        past: [],
+        // Loading is undoable, so opening an example never destroys unsaved work.
+        past: [...state.past, state.project].slice(-HISTORY_LIMIT),
         future: [],
         selection: null,
         tool: 'select',
+        view: {
+          ...state.view,
+          diagram: state.view.diagram === 'none' ? 'none' : allTruss ? 'N' : 'M',
+          labels: members.length <= 24,
+        },
         loadCount: state.loadCount + 1,
       };
+    }
     case 'edit': {
       if (action.project === state.project) return state;
       const selection = action.selection === undefined ? state.selection : action.selection;

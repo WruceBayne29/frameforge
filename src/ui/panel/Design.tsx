@@ -1,5 +1,5 @@
 import { STEEL_GRADES } from '../../design-codes';
-import { utilisationColor } from '../canvas/ResultsLayer';
+import { utilisationColor } from '../../model';
 import { useStore } from '../store';
 
 export function Design() {

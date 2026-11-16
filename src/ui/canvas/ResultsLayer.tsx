@@ -1,48 +1,12 @@
 import { memo } from 'react';
-import type { MemberDesign, Project } from '../../model';
+import { resultPeaks } from '../../model';
+import type { MemberDesign, Project, ResultScales } from '../../model';
 import type { AnalysisResult, MemberResult, Station } from '../../solver';
 import { fmt } from '../format';
 import type { DiagramKind } from '../store';
 import { Arrow, MomentArc } from './glyphs';
 import type { Point, View } from './view';
-import { modelSize, toScreen } from './view';
-
-/** Colour for a utilisation ratio: green → amber → red, magenta when failing. */
-export function utilisationColor(ratio: number): string {
-  if (!Number.isFinite(ratio)) return '#9ca3af';
-  if (ratio > 1) return '#c026d3';
-  const hue = 140 - 140 * Math.min(Math.max(ratio, 0), 1);
-  return `hsl(${hue.toFixed(0)} 78% 42%)`;
-}
-
-export interface ResultScales {
-  /** World metres of deformation drawn per metre of real displacement. */
-  deform: number;
-  /** World metres of diagram ordinate per unit of N / V / M. */
-  diagram: Record<'N' | 'V' | 'M', number>;
-}
-
-/** Automatic scales so the largest deformation / diagram ordinate is a fixed share of the model. */
-export function resultScales(
-  project: Project,
-  result: AnalysisResult,
-  deformFactor: number,
-  diagramFactor: number,
-): ResultScales {
-  const size = modelSize(project);
-  const max = { N: 0, V: 0, M: 0 };
-  for (const m of Object.values(result.members)) {
-    max.N = Math.max(max.N, Math.abs(m.maxAxial.value), Math.abs(m.minAxial.value));
-    max.V = Math.max(max.V, Math.abs(m.maxAbsShear.value));
-    max.M = Math.max(max.M, Math.abs(m.maxAbsMoment.value));
-  }
-  const unit = (peak: number) => (peak > 1e-9 ? (0.11 * size * diagramFactor) / peak : 0);
-  return {
-    deform:
-      result.maxDisplacement > 1e-12 ? (0.045 * size * deformFactor) / result.maxDisplacement : 0,
-    diagram: { N: unit(max.N), V: unit(max.V), M: unit(max.M) },
-  };
-}
+import { toScreen } from './view';
 
 interface Props {
   project: Project;
@@ -53,6 +17,8 @@ interface Props {
   deformed: boolean;
   reactions: boolean;
   utilisation: boolean;
+  /** Show every value label; when false only the significant ones are drawn. */
+  labels: boolean;
   scales: ResultScales;
 }
 
@@ -68,7 +34,9 @@ function Diagram({
   view,
   unit,
   peak,
+  labelThreshold,
 }: {
+  labelThreshold: number;
   kind: 'N' | 'V' | 'M';
   member: MemberResult;
   start: Point;
@@ -108,7 +76,7 @@ function Diagram({
   }
   const labels: Station[] = [];
   for (const s of candidates) {
-    if (Math.abs(s[kind]) < 0.02 * peak) continue;
+    if (Math.abs(s[kind]) < labelThreshold * peak) continue;
     const duplicate = labels.some(
       (l) =>
         Math.abs(l.x - s.x) < 0.08 * member.length && Math.abs(l[kind] - s[kind]) < 0.02 * peak,
@@ -152,6 +120,7 @@ export const ResultsLayer = memo(function ResultsLayer({
   deformed,
   reactions,
   utilisation,
+  labels,
   scales,
 }: Props) {
   const nodes = new Map(project.nodes.map((n) => [n.id, n]));
@@ -160,12 +129,7 @@ export const ResultsLayer = memo(function ResultsLayer({
     const n = nodes.get(m.i);
     if (n) starts.set(m.id, [n.x, n.y]);
   }
-  const peak = { N: 0, V: 0, M: 0 };
-  for (const m of Object.values(result.members)) {
-    peak.N = Math.max(peak.N, Math.abs(m.maxAxial.value), Math.abs(m.minAxial.value));
-    peak.V = Math.max(peak.V, Math.abs(m.maxAbsShear.value));
-    peak.M = Math.max(peak.M, Math.abs(m.maxAbsMoment.value));
-  }
+  const peak = resultPeaks(result);
   const maxReaction = Object.values(result.reactions).reduce(
     (m, r) => Math.max(m, Math.abs(r.fx), Math.abs(r.fy)),
     0,
@@ -187,6 +151,7 @@ export const ResultsLayer = memo(function ResultsLayer({
               view={view}
               unit={scales.diagram[diagram]}
               peak={peak[diagram]}
+              labelThreshold={labels ? 0.02 : 0.3}
             />
           );
         })}
@@ -210,6 +175,7 @@ export const ResultsLayer = memo(function ResultsLayer({
           const r = result.members[m.id];
           const start = starts.get(m.id);
           if (!d || !r || !start) return null;
+          if (!labels && d.result.utilisation < 0.85) return null;
           const mid = along(start, r, r.length / 2, 0);
           const p = toScreen(view, mid[0], mid[1]);
           return (

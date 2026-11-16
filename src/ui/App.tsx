@@ -1,12 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { EXAMPLES } from '../examples';
+import { parseProjectText, serializeProject } from '../io/projectFile';
+import { decodeProject, payloadFromHash } from '../io/share';
+import type { Project } from '../model';
 import { deleteLoad, deleteMember, deleteNode } from '../model';
 import { Canvas } from './Canvas';
+import { Help } from './Help';
 import { SidePanel } from './SidePanel';
 import { StoreProvider, useStore } from './store';
 import type { DiagramKind, Tool } from './store';
+import { notify, Toasts } from './toast';
 import { Toolbar } from './Toolbar';
 import { TopBar } from './TopBar';
+import { Tour } from './Tour';
 import { ViewBar } from './ViewBar';
 import { fmt, mm } from './format';
 import './styles.css';
@@ -14,13 +20,69 @@ import './styles.css';
 type Theme = 'light' | 'dark';
 
 function initialTheme(): Theme {
-  try {
-    const saved = localStorage.getItem('frameforge-theme');
-    if (saved === 'light' || saved === 'dark') return saved;
-  } catch {
-    // Storage may be unavailable (private mode); fall through to the system preference.
-  }
+  const saved = read('frameforge-theme');
+  if (saved === 'light' || saved === 'dark') return saved;
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+const STORAGE_KEY = 'frameforge-project';
+const TOUR_KEY = 'frameforge-tour-done';
+
+function read(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function write(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage may be full or disabled; the app works without it.
+  }
+}
+
+/** The model from the last visit, or the first example for new visitors. */
+function initialProject(): Project {
+  const saved = read(STORAGE_KEY);
+  if (saved) {
+    try {
+      const project = parseProjectText(saved);
+      if (project.nodes.length > 0) return project;
+    } catch {
+      // Fall through to the default example.
+    }
+  }
+  return EXAMPLES[0].build();
+}
+
+/** Loads a model from a share link, and keeps the last model in local storage. */
+function Persistence() {
+  const { state, dispatch } = useStore();
+  useEffect(() => {
+    const load = () => {
+      const payload = payloadFromHash(window.location.hash);
+      if (!payload) return;
+      decodeProject(payload)
+        .then((project) => {
+          dispatch({ type: 'load', project });
+          notify(`Opened shared model "${project.name}".`);
+        })
+        .catch((e: unknown) =>
+          notify(e instanceof Error ? e.message : 'Could not open that link.', 'error'),
+        );
+    };
+    load();
+    window.addEventListener('hashchange', load);
+    return () => window.removeEventListener('hashchange', load);
+  }, [dispatch]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => write(STORAGE_KEY, serializeProject(state.project)), 400);
+    return () => window.clearTimeout(timer);
+  }, [state.project]);
+  return null;
 }
 
 function StatusBar() {
@@ -58,7 +120,7 @@ const TOOL_KEYS: Record<string, Tool> = {
 const DIAGRAM_KEYS: Record<string, DiagramKind> = { '0': 'none', '1': 'N', '2': 'V', '3': 'M' };
 
 /** Global keyboard shortcuts. Ignored while typing in a form field. */
-function Shortcuts() {
+function Shortcuts({ onHelp }: { onHelp: () => void }) {
   const { state, dispatch } = useStore();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -96,7 +158,8 @@ function Shortcuts() {
         dispatch({ type: 'select', selection: null });
         return;
       }
-      if (TOOL_KEYS[key]) dispatch({ type: 'tool', tool: TOOL_KEYS[key] });
+      if (key === '?') onHelp();
+      else if (TOOL_KEYS[key]) dispatch({ type: 'tool', tool: TOOL_KEYS[key] });
       else if (DIAGRAM_KEYS[key]) dispatch({ type: 'view', view: { diagram: DIAGRAM_KEYS[key] } });
       else if (key === 'd') dispatch({ type: 'view', view: { deformed: !state.view.deformed } });
       else if (key === 'r') dispatch({ type: 'view', view: { reactions: !state.view.reactions } });
@@ -108,17 +171,27 @@ function Shortcuts() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [state, dispatch]);
+  }, [state, dispatch, onHelp]);
   return null;
 }
 
 function Stage() {
-  const { solution } = useStore();
+  const { state, solution } = useStore();
+  const empty = state.project.nodes.length === 0;
   return (
     <section className="stage">
       <ViewBar />
       <div className="canvas-wrap">
         <Canvas />
+        {empty && (
+          <div className="empty-hint">
+            <strong>Empty model</strong>
+            <span>
+              Press <kbd>M</kbd> and click on the grid to draw members, or pick a structure from{' '}
+              <em>Examples</em>.
+            </span>
+          </div>
+        )}
         {solution.error && (
           <div className="error-banner" role="alert">
             <strong>Cannot analyse this structure.</strong> {solution.error.message}
@@ -133,27 +206,45 @@ export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem('frameforge-theme', theme);
-    } catch {
-      // Ignore storage failures.
-    }
+    write('frameforge-theme', theme);
   }, [theme]);
 
+  const [help, setHelp] = useState(false);
+  const [tour, setTour] = useState(() => read(TOUR_KEY) !== '1' && !navigator.webdriver);
+  const [initial] = useState(initialProject);
+  const openHelp = useCallback(() => setHelp(true), []);
+  const closeTour = useCallback(() => {
+    setTour(false);
+    write(TOUR_KEY, '1');
+  }, []);
+
   return (
-    <StoreProvider initial={EXAMPLES[0].build()}>
+    <StoreProvider initial={initial}>
       <div className="app">
         <TopBar
           theme={theme}
           onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          onHelp={openHelp}
         />
-        <Shortcuts />
+        <Shortcuts onHelp={openHelp} />
+        <Persistence />
         <div className="main">
           <Toolbar />
           <Stage />
           <SidePanel />
         </div>
         <StatusBar />
+        <Toasts />
+        {help && (
+          <Help
+            onClose={() => setHelp(false)}
+            onTour={() => {
+              setHelp(false);
+              setTour(true);
+            }}
+          />
+        )}
+        {tour && <Tour onClose={closeTour} />}
       </div>
     </StoreProvider>
   );

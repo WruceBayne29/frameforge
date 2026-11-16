@@ -1,14 +1,94 @@
+import { useRef, useState } from 'react';
 import { EXAMPLES } from '../examples';
+import { parseProjectText, ProjectFormatError, serializeProject } from '../io/projectFile';
+import { shareUrl } from '../io/share';
+import { emptyProject } from '../model';
 import { useStore } from './store';
+import { notify } from './toast';
 
 export interface TopBarProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  onHelp: () => void;
 }
 
-export function TopBar({ theme, onToggleTheme }: TopBarProps) {
-  const { state, dispatch } = useStore();
+function download(name: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function slug(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'frameforge'
+  );
+}
+
+export function TopBar({ theme, onToggleTheme, onHelp }: TopBarProps) {
+  const { state, dispatch, solution } = useStore();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const project = state.project;
   const categories = ['Beams', 'Frames', 'Trusses'] as const;
+
+  const openFile = async (file: File) => {
+    try {
+      dispatch({ type: 'load', project: parseProjectText(await file.text()) });
+      notify(`Opened ${file.name}`);
+    } catch (e) {
+      notify(e instanceof ProjectFormatError ? e.message : 'Could not read that file.', 'error');
+    }
+  };
+
+  const share = async () => {
+    try {
+      const url = await shareUrl(project, window.location.href);
+      window.history.replaceState(null, '', url);
+      try {
+        await navigator.clipboard.writeText(url);
+        notify('Share link copied to the clipboard.');
+      } catch {
+        notify('Share link is in the address bar — copy it from there.');
+      }
+    } catch {
+      notify('Could not create a share link.', 'error');
+    }
+  };
+
+  const report = async () => {
+    if (!solution.result) {
+      notify('Fix the model so it can be analysed before exporting a report.', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      // The PDF library is loaded on demand so it does not slow down the first page load.
+      const [{ buildReport, reportFileName }, link] = await Promise.all([
+        import('../io/report'),
+        shareUrl(project, window.location.href).catch(() => undefined),
+      ]);
+      buildReport({
+        project,
+        result: solution.result,
+        design: solution.design,
+        shareUrl: link,
+      }).save(reportFileName(project));
+      notify('PDF report downloaded.');
+    } catch {
+      notify('Could not create the PDF report.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <header className="topbar">
       <div className="brand">
@@ -29,6 +109,8 @@ export function TopBar({ theme, onToggleTheme }: TopBarProps) {
         onChange={(e) => {
           const example = EXAMPLES.find((x) => x.id === e.target.value);
           if (example) dispatch({ type: 'load', project: example.build() });
+          // Return focus to the page so keyboard shortcuts work straight away.
+          e.target.blur();
         }}
       >
         <option value="" disabled>
@@ -44,8 +126,68 @@ export function TopBar({ theme, onToggleTheme }: TopBarProps) {
           </optgroup>
         ))}
       </select>
-      <span className="project-name" title={state.project.description}>
-        {state.project.name}
+      <div className="file-actions" data-tour="export">
+        <button
+          type="button"
+          className="ghost"
+          title="Start an empty model"
+          onClick={() => dispatch({ type: 'load', project: emptyProject() })}
+        >
+          New
+        </button>
+        <button
+          type="button"
+          className="ghost"
+          title="Open a saved .json model"
+          onClick={() => fileInput.current?.click()}
+        >
+          Open
+        </button>
+        <button
+          type="button"
+          className="ghost"
+          title="Save the model as a .json file"
+          onClick={() =>
+            download(
+              `${slug(project.name)}.json`,
+              new Blob([serializeProject(project)], { type: 'application/json' }),
+            )
+          }
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          className="ghost"
+          title="Copy a link that opens this exact model"
+          onClick={share}
+        >
+          Share
+        </button>
+        <button
+          type="button"
+          className="primary"
+          title="Download a PDF calculation report"
+          disabled={busy}
+          onClick={report}
+        >
+          {busy ? 'Building…' : 'PDF report'}
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          aria-label="Open a model file"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void openFile(file);
+            e.target.value = '';
+          }}
+        />
+      </div>
+      <span className="project-name" title={project.description}>
+        {project.name}
       </span>
       <div className="spacer" />
       <button
@@ -73,6 +215,14 @@ export function TopBar({ theme, onToggleTheme }: TopBarProps) {
         onClick={onToggleTheme}
       >
         {theme === 'dark' ? 'Light' : 'Dark'}
+      </button>
+      <button
+        type="button"
+        className="ghost"
+        title="Keyboard shortcuts and tour (?)"
+        onClick={onHelp}
+      >
+        Help
       </button>
       <a
         className="ghost link"
