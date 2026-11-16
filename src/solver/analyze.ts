@@ -456,7 +456,13 @@ export function analyze(model: StructureModel, options: AnalysisOptions = {}): A
   });
 
   const members: Record<string, MemberResult> = {};
-  for (const el of system.elements) members[el.member.id] = memberResult(el, u, segments);
+  for (const el of system.elements) {
+    const result = memberResult(el, u, segments);
+    members[el.member.id] = result;
+    for (const s of result.stations) {
+      maxDisplacement = Math.max(maxDisplacement, Math.hypot(s.u, s.v));
+    }
+  }
 
   return {
     displacements,

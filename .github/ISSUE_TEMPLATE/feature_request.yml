@@ -1,0 +1,55 @@
+name: Feature request
+description: Suggest a new feature or an improvement
+title: '[Feature] '
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe what you are trying to do and why it is hard or impossible today.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe what you would like to see. Sketches and references are welcome.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Solver (analysis)
+        - Design checks
+        - Editor and user interface
+        - Results and diagrams
+        - Import, export and sharing
+        - Examples
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches or workarounds you have thought about.
+    validations:
+      required: false
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: For engineering features, the textbook, paper or code clause that defines the method.
+    validations:
+      required: false
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to work on this myself
+          required: false

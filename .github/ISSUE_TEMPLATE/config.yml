@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Theory manual
+    url: https://github.com/WruceBayne29/frameforge/blob/main/docs/THEORY.md
+    about: Sign conventions, derivations and the assumptions behind the solver.
+  - name: Live demo
+    url: https://wrucebayne29.github.io/frameforge/
+    about: Try the latest version of FrameForge in your browser.

@@ -172,7 +172,7 @@ export interface AnalysisResult {
   /** Reactions at supported nodes (including spring supports). */
   reactions: Record<string, Reaction>;
   members: Record<string, MemberResult>;
-  /** Largest nodal translation magnitude. */
+  /** Largest translation magnitude anywhere in the structure (nodes and along members). */
   maxDisplacement: number;
   /** Sum of applied loads + reactions; should be ~0. [ΣFx, ΣFy, ΣM about origin]. */
   equilibrium: [number, number, number];

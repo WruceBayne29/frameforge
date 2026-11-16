@@ -1,0 +1,85 @@
+name: Wrong result
+description: The solver or a design check gives a numerically wrong answer
+title: '[Wrong result] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A wrong answer is the most serious kind of bug in FrameForge, so thank you for reporting it.
+
+        Before you file, please check:
+        - the sign conventions and units in section 2 of [docs/THEORY.md](https://github.com/WruceBayne29/frameforge/blob/main/docs/THEORY.md);
+        - the assumptions in section 14 (no shear deformation, no P-Delta effects, 2D only).
+  - type: textarea
+    id: model
+    attributes:
+      label: Model
+      description: |
+        Paste the share URL from the app's share button, or the exported model JSON.
+        The exact model is needed to reproduce the problem.
+      placeholder: https://wrucebayne29.github.io/frameforge/... or the JSON contents
+    validations:
+      required: true
+  - type: dropdown
+    id: quantity
+    attributes:
+      label: Which kind of result is wrong?
+      options:
+        - Node displacement or rotation
+        - Support reaction
+        - Axial force
+        - Shear force
+        - Bending moment
+        - Deflected shape along a member
+        - Design check or utilisation ratio
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: Where in the model?
+      description: The node or member, and the position along the member if relevant.
+      placeholder: Member 3 at midspan, node 2 vertical reaction, ...
+    validations:
+      required: true
+  - type: input
+    id: actual
+    attributes:
+      label: Value FrameForge gives
+      description: Include units and sign.
+      placeholder: '-41.7 kN·m'
+    validations:
+      required: true
+  - type: input
+    id: expected
+    attributes:
+      label: Value you expect
+      description: Include units and sign.
+      placeholder: '-45.0 kN·m'
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Source of the expected value
+      description: |
+        Where does the expected value come from? For example a textbook (author, title, edition, example number),
+        a closed-form formula, a hand calculation (please attach it), or another program (name and version).
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else?
+      description: Screenshots, your working, or any pattern you have noticed.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I have compared signs and units using the conventions in the theory manual
+          required: true
