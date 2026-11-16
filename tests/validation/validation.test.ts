@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { VALIDATION_CASES } from './cases';
 import type { ValidationCheck } from './cases';
@@ -19,6 +19,7 @@ function fmt(v: number): string {
 }
 
 const rows: string[] = [];
+const summary: string[] = [];
 
 describe('validation suite: textbook problems vs closed-form answers', () => {
   it('has at least 10 problems', () => {
@@ -33,6 +34,15 @@ describe('validation suite: textbook problems vs closed-form answers', () => {
       rows.push(`Reference: ${vcase.reference}\n`);
       rows.push('| Quantity | Closed form | Expected | FrameForge | Error |');
       rows.push('| --- | --- | ---: | ---: | ---: |');
+      const worst = Math.max(...checks.map((c) => relativeError(c, scale)));
+      summary.push(
+        `| ${vcase.id} | ${vcase.title} | ${checks
+          .map((c) => c.formula)
+          .slice(0, 3)
+          .join(
+            ', ',
+          )}${checks.length > 3 ? ', …' : ''} | ${checks.length} | ${worst < 5e-7 ? '< 0.0001' : (worst * 100).toFixed(4)} % |`,
+      );
       for (const c of checks) {
         const err = relativeError(c, scale);
         rows.push(
@@ -63,6 +73,33 @@ describe('validation suite: textbook problems vs closed-form answers', () => {
       'Where the classical solution neglects axial deformation (portal frames), a very large area is used.',
       'Deflections are positive upward, so downward deflections are negative.',
     ];
-    writeFileSync('VALIDATION.md', [...header, ...rows, ''].join('\n'));
+    const table = [
+      '| # | Problem | Closed-form checks | Quantities | Max error |',
+      '| --- | --- | --- | ---: | ---: |',
+      ...summary,
+    ];
+    writeFileSync(
+      'VALIDATION.md',
+      [...header, '', '## Summary', '', ...table, '', '## Full results', ...rows, ''].join('\n'),
+    );
+    // Keep the copy of the summary table in the README in sync.
+    const readme = readFileSync('README.md', 'utf8');
+    const start = '<!-- validation:start -->';
+    const end = '<!-- validation:end -->';
+    if (readme.includes(start) && readme.includes(end)) {
+      const block = [
+        start,
+        `**${VALIDATION_CASES.length} problems, ${total} quantities, all within 0.1 %.**`,
+        '',
+        ...table,
+        end,
+      ].join('\n');
+      writeFileSync(
+        'README.md',
+        readme.slice(0, readme.indexOf(start)) +
+          block +
+          readme.slice(readme.indexOf(end) + end.length),
+      );
+    }
   });
 });
