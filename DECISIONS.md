@@ -30,3 +30,9 @@ Calls made autonomously while building, newest last.
 14. **Loading an example / file is undoable** rather than guarded by a confirm dialog.
 15. **The in-app browser could not open the public Pages URL** (site approval needed, owner AFK), so
     the live deploy is verified with curl and Playwright instead.
+16. **LINKEDIN_POST.md and CV_BULLETS.md state that an AI coding agent wrote the implementation.**
+    The brief asked for first-person copy; the repo history shows how it was built, so the copy says
+    so plainly and uses "specified / shipped" rather than "hand-wrote". Edit if you disagree — but
+    read the note at the top of each file first.
+17. **README validation table is generated** by the validation test (`npm run validation`) between
+    HTML comment markers, so it cannot drift from the suite.

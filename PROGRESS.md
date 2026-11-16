@@ -19,13 +19,19 @@
   9 examples; PDF report (`src/io/report.ts`), JSON save/load, share URL (`#m=`), autosave;
   dark/light, responsive CSS, shortcuts, help dialog, onboarding tour.
 
+- Playwright: `scripts/e2e.mjs` (63 checks, passing on the live site) and `scripts/screenshots.mjs`
+  (docs/screenshots + hero GIF).
+- Final docs: README (full), docs/THEORY.md, VALIDATION.md, CONTRIBUTING, templates, LICENSE,
+  LINKEDIN_POST.md, CV_BULLETS.md.
+
 ## In progress
-- Playwright end-to-end script against the live site + README screenshots/GIF.
+- Self-review of the live site, then stretch features.
 
 ## Exact next step
-- `npm i -D playwright`, write `scripts/e2e.mjs` (click through every feature on the live URL) and
-  `scripts/screenshots.mjs` (docs/screenshots/*.png + hero GIF). Then write the full README,
-  LINKEDIN_POST.md, CV_BULLETS.md. Then self-review + stretch features (influence lines, modal).
+- Stretch 1: modal analysis (`src/solver/modal.ts`: consistent mass matrix + generalised
+  eigenproblem, validated against beam natural-frequency formulas) with a UI tab.
+- Stretch 2: influence lines (`src/solver/influence.ts`) with a UI control.
+- Then refresh metrics in README / CV_BULLETS / LINKEDIN_POST, re-run `npm run e2e`, mark COMPLETE.
 
 ## Milestone checklist
 - [x] 1. Solver core + validation suite
@@ -36,6 +42,6 @@
 - [x] 6. Example library
 - [x] 7. Export (PDF / JSON / URL)
 - [x] 8. Polish
-- [ ] Final docs & deliverables
+- [x] Final docs & deliverables
 - [ ] Self-review on live site
 - [ ] Stretch features
