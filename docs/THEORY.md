@@ -853,7 +853,7 @@ the check is $M_{eff} = M - \psi T Z_{ec} / A \le M_d$.
 The **utilisation ratio** shown for a member is the largest demand-to-capacity ratio over all
 the checks; a value above 1.0 means the member fails.
 
-## 13. Stretch features
+## 13. Influence lines and modal analysis
 
 ### 13.1 Influence lines
 
@@ -861,8 +861,10 @@ An influence line for a response $R$ (a reaction, or the shear or moment at a fi
 plots the value of $R$ against the position of a moving unit load.
 
 **Unit-load method.** Place a unit load at a series of positions along the load path, solve
-$K u = F$ for each, and record $R$. Only the right-hand side changes, so $K_{ff}$ is factorised
-once and each position costs only a forward and a back substitution.
+$K u = F$ for each, and record $R$. This is what FrameForge does (`src/solver/influence.ts`): one
+full analysis per load position, which is simple and exact at every sampled position. Since only
+the right-hand side changes between positions, a faster implementation would factorise $K_{ff}$
+once and repeat only the forward and back substitutions.
 
 **Müller-Breslau principle.** The influence line for $R$ has the same shape as the deflection of
 the structure when the restraint that carries $R$ is removed and a unit displacement (or unit
@@ -912,14 +914,18 @@ m_a = \frac{\rho A L}{6} \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix}
 $$
 
 The element mass matrix is transformed and assembled exactly like the stiffness
-($m_g = T^{T} m_l T$). One standard route to the solution reuses the Cholesky factor
-$K_{ff} = L L^{T}$ of section 10 to turn the generalised problem into a standard symmetric one,
+($m_g = T^{T} m_l T$). A member with an end release uses the mass matrix reduced with the same
+transformation that static condensation applies to the stiffness (Guyan reduction).
 
-$$ \left( L^{-1} M_{ff} L^{-T} \right) y = \frac{1}{\omega^2} y, \qquad \phi = L^{-T} y $$
+FrameForge (`src/solver/modal.ts`) turns the generalised problem into a standard symmetric one
+with the Cholesky factor of the mass matrix, $M_{ff} = L L^{T}$:
 
-whose largest eigenvalues are the lowest frequencies. Unlike the static solution, a modal
-solution is approximate with one element per member, because the true vibration shape is not a
-cubic; splitting members into several elements improves the higher modes. A good test case is
+$$ \left( L^{-1} K_{ff} L^{-T} \right) y = \omega^2 y, \qquad \phi = L^{-T} y $$
+
+and finds all eigenvalues of that symmetric matrix with the cyclic Jacobi method, keeping the
+lowest few. Unlike the static solution, a modal solution is approximate with one element per
+member, because the true vibration shape is not a cubic; the app therefore splits each frame
+member into several elements before solving, which makes the higher modes accurate. A good test case is
 the simply supported beam, whose exact frequencies are
 
 $$ \omega_n = (n\pi)^2 \sqrt{\frac{EI}{\rho A L^4}}, \qquad n = 1, 2, 3, \dots $$

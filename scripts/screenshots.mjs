@@ -94,6 +94,41 @@ const shot = async (page, name) => {
   await page.context().close();
 }
 
+// 5b. Mode shape and influence line.
+{
+  const page = await open('dark');
+  await pick(page, 'multi-storey');
+  await tab(page, 'Advanced');
+  await page.locator('.panel-body button', { hasText: 'Compute natural frequencies' }).click();
+  await page.waitForSelector('.mode-shape');
+  // Catch the animation near its largest amplitude.
+  let best = 0;
+  let tries = 0;
+  const x0 = Number((await page.locator('.mode-node').last().getAttribute('cx')) ?? 0);
+  while (tries++ < 40) {
+    const x = Number((await page.locator('.mode-node').last().getAttribute('cx')) ?? 0);
+    best = Math.max(best, Math.abs(x - x0));
+    if (tries > 12 && Math.abs(x - x0) > 0.92 * best && best > 4) break;
+    await page.waitForTimeout(35);
+  }
+  await page.screenshot({ path: join(out, 'modal.png') });
+  console.log(`wrote ${out}/modal.png`);
+  await page.context().close();
+}
+{
+  const page = await open('light');
+  await pick(page, 'continuous-beam');
+  await tab(page, 'Advanced');
+  await page.locator('.panel-body select[aria-label="Member"]').selectOption('M1');
+  const position = page.locator('.panel-body input[aria-label="Section position"]');
+  await position.fill('6');
+  await position.press('Enter');
+  await page.locator('.panel-body button', { hasText: 'Show influence line' }).click();
+  await page.waitForSelector('.influence-line');
+  await shot(page, 'influence-line.png');
+  await page.context().close();
+}
+
 // 6. Phone layout.
 {
   const page = await open('dark', { width: 390, height: 800 }, 3);

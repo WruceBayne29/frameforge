@@ -14,6 +14,7 @@ import {
   utilisationColor,
 } from '../model';
 import type { Project } from '../model';
+import { InfluenceLayer, ModeShapeLayer } from './canvas/ExtrasLayer';
 import { ModelLayer, memberGeometries } from './canvas/ModelLayer';
 import { ResultsLayer } from './canvas/ResultsLayer';
 import type { Point, View } from './canvas/view';
@@ -36,7 +37,7 @@ const NODE_RADIUS = 13;
 const MEMBER_RADIUS = 8;
 
 export function Canvas() {
-  const { state, dispatch, solution } = useStore();
+  const { state, dispatch, solution, extras } = useStore();
   const { tool, toolOptions, selection, view: options } = state;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -456,6 +457,12 @@ export function Canvas() {
     return { title, lines };
   }, [hover, cursor, project, geometries, shown]);
 
+  // Mode shapes and influence lines replace the normal results while they are shown.
+  const activeMode =
+    state.advanced.mode !== null ? (extras.modal?.modes[state.advanced.mode] ?? null) : null;
+  const activeInfluence = state.advanced.influence ? extras.influence : null;
+  const overlay = !draft && (!!activeMode || !!activeInfluence);
+
   // Rubber-band preview for the member tool.
   const pendingNode = pending ? project.nodes.find((n) => n.id === pending) : undefined;
   const ghost =
@@ -501,7 +508,18 @@ export function Canvas() {
             />
           ))}
         </g>
-        {shown.result && scales && (
+        {activeMode && !draft && (
+          <ModeShapeLayer project={project} mode={activeMode} geometries={geometries} view={view} />
+        )}
+        {activeInfluence && !draft && (
+          <InfluenceLayer
+            project={project}
+            line={activeInfluence}
+            geometries={geometries}
+            view={view}
+          />
+        )}
+        {shown.result && scales && !overlay && (
           <ResultsLayer
             project={project}
             result={shown.result}
@@ -520,7 +538,7 @@ export function Canvas() {
           view={view}
           selection={selection}
           hover={hover?.target ?? null}
-          showLoads={options.loads}
+          showLoads={options.loads && !overlay}
           showLabels={options.labels}
           showMemberLabels={options.labels && !(options.utilisation && !!shown.result)}
           memberColors={memberColors}
@@ -558,9 +576,13 @@ export function Canvas() {
 
       <div className="canvas-readout">
         {cursor ? `x ${cursor.world[0].toFixed(2)} m · y ${cursor.world[1].toFixed(2)} m` : ' '}
-        {scales && options.deformed && shown.result && shown.result.maxDisplacement > 0 && (
-          <span> · deformation ×{fmt(scales.deform, 2)}</span>
-        )}
+        {activeMode && <span> · mode shape, f = {fmt(activeMode.frequency)} Hz</span>}
+        {activeInfluence && <span> · influence line for a 1 kN downward load</span>}
+        {!overlay &&
+          scales &&
+          options.deformed &&
+          shown.result &&
+          shown.result.maxDisplacement > 0 && <span> · deformation ×{fmt(scales.deform, 2)}</span>}
       </div>
       {pending && (
         <div className="canvas-hint">Click the next node · Esc or double-click to finish</div>

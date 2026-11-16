@@ -1,32 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { Advanced } from './panel/Advanced';
 import { Design } from './panel/Design';
 import { Properties } from './panel/Properties';
 import { Results } from './panel/Results';
 import { Tables } from './panel/Tables';
-import { useStore } from './store';
 
-type Tab = 'properties' | 'tables' | 'results' | 'design';
+type Tab = 'properties' | 'tables' | 'results' | 'design' | 'advanced';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'properties', label: 'Properties' },
   { id: 'tables', label: 'Tables' },
   { id: 'results', label: 'Results' },
   { id: 'design', label: 'Design' },
+  { id: 'advanced', label: 'Advanced' },
 ];
 
 export function SidePanel() {
-  const { state } = useStore();
   const [tab, setTab] = useState<Tab>('properties');
   const [open, setOpen] = useState(true);
-  const selectionKey = state.selection ? `${state.selection.kind}:${state.selection.id}` : '';
-
-  // Selecting something on the canvas brings up its properties, unless the user is working in
-  // one of the tables (where selection just highlights the row).
-  useEffect(() => {
-    if (selectionKey)
-      setTab((t) => (t === 'tables' || t === 'design' || t === 'results' ? t : 'properties'));
-  }, [selectionKey]);
-
   return (
     <aside
       className={`panel${open ? '' : ' collapsed'}`}
@@ -65,6 +56,7 @@ export function SidePanel() {
           {tab === 'tables' && <Tables />}
           {tab === 'results' && <Results />}
           {tab === 'design' && <Design />}
+          {tab === 'advanced' && <Advanced />}
         </div>
       )}
     </aside>

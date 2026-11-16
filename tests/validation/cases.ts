@@ -2,7 +2,7 @@
  * Validation suite: textbook problems with closed-form answers.
  * Units: kN, m. Every check must match the closed-form value to within 0.1 %.
  */
-import { analyze } from '../../src/solver';
+import { analyze, influenceLine, modalAnalysis } from '../../src/solver';
 import type {
   AnalysisResult,
   SolverLoad,
@@ -850,6 +850,162 @@ export const VALIDATION_CASES: ValidationCase[] = [
           -(P - (P * ks) / (ks + kb)) * L,
           r.members.AB.start.M,
           'kN·m',
+        ),
+      ];
+    },
+  },
+  {
+    id: 'V23',
+    title: 'Natural frequencies of a simply supported beam (modal analysis)',
+    reference: 'Chopra, Dynamics of Structures, ch. 16: ω_n = (nπ)²·√(EI/mL⁴)',
+    run: () => {
+      const L = 6;
+      const n = 12;
+      const m = A * 7.85;
+      const nodes = Array.from({ length: n + 1 }, (_, k) => node(`N${k}`, (L * k) / n, 0));
+      const members = Array.from({ length: n }, (_, k) =>
+        frame(`M${k}`, `N${k}`, `N${k + 1}`, { massPerLength: m, A: A_RIGID }),
+      );
+      const r = modalAnalysis(
+        { nodes, members, supports: [pinned('N0'), roller(`N${n}`)], loads: [] },
+        3,
+      );
+      const omega = (k: number) => (k * Math.PI) ** 2 * Math.sqrt((E * I) / (m * L ** 4));
+      return [
+        check('1st circular frequency', 'π²·√(EI/mL⁴)', omega(1), r.modes[0].omega, 'rad/s'),
+        check('2nd circular frequency', '4π²·√(EI/mL⁴)', omega(2), r.modes[1].omega, 'rad/s'),
+        check('3rd circular frequency', '9π²·√(EI/mL⁴)', omega(3), r.modes[2].omega, 'rad/s'),
+        check('1st frequency', 'ω₁/2π', omega(1) / (2 * Math.PI), r.modes[0].frequency, 'Hz'),
+      ];
+    },
+  },
+  {
+    id: 'V24',
+    title: 'Natural frequencies of a cantilever (modal analysis)',
+    reference: 'Chopra, Dynamics of Structures, ch. 16: ω_n = (β_n L)²·√(EI/mL⁴)',
+    run: () => {
+      const L = 4;
+      const n = 12;
+      const m = A * 7.85;
+      const nodes = Array.from({ length: n + 1 }, (_, k) => node(`N${k}`, (L * k) / n, 0));
+      const members = Array.from({ length: n }, (_, k) =>
+        frame(`M${k}`, `N${k}`, `N${k + 1}`, { massPerLength: m, A: A_RIGID }),
+      );
+      const r = modalAnalysis({ nodes, members, supports: [fixed('N0')], loads: [] }, 2);
+      const base = Math.sqrt((E * I) / (m * L ** 4));
+      return [
+        check(
+          '1st circular frequency',
+          '1.8751²·√(EI/mL⁴)',
+          1.8751040687 ** 2 * base,
+          r.modes[0].omega,
+          'rad/s',
+        ),
+        check(
+          '2nd circular frequency',
+          '4.6941²·√(EI/mL⁴)',
+          4.694091133 ** 2 * base,
+          r.modes[1].omega,
+          'rad/s',
+        ),
+        check(
+          '1st period',
+          '2π/ω₁',
+          (2 * Math.PI) / (1.8751040687 ** 2 * base),
+          r.modes[0].period,
+          's',
+        ),
+      ];
+    },
+  },
+  {
+    id: 'V25',
+    title: 'Influence lines for a simply supported beam',
+    reference: 'Hibbeler, Structural Analysis, ch. 6 (unit load moving across the span)',
+    run: () => {
+      const L = 8;
+      const model: StructureModel = {
+        nodes: [node('A', 0, 0), node('B', L, 0)],
+        members: [frame('AB', 'A', 'B')],
+        supports: [pinned('A'), roller('B')],
+        loads: [],
+      };
+      const options = { pointsPerMember: 17, magnitude: -1 };
+      const reaction = influenceLine(
+        model,
+        { kind: 'reaction', node: 'A', component: 'fy' },
+        options,
+      );
+      const moment = influenceLine(
+        model,
+        { kind: 'memberForce', member: 'AB', x: L / 2, component: 'M' },
+        options,
+      );
+      const quarter = influenceLine(
+        model,
+        { kind: 'memberForce', member: 'AB', x: L / 4, component: 'M' },
+        options,
+      );
+      const atX = (line: typeof reaction, x: number) =>
+        line.ordinates.find((o) => Math.abs(o.x - x) < 1e-9)?.value ?? NaN;
+      return [
+        check('R_A with the load at L/4', '1 − x/L', 0.75, atX(reaction, L / 4), 'kN/kN'),
+        check('R_A with the load at 3L/4', '1 − x/L', 0.25, atX(reaction, (3 * L) / 4), 'kN/kN'),
+        check('Peak of the midspan-moment line', 'L/4', L / 4, moment.max.value, 'kN·m/kN'),
+        check('Midspan moment, load at L/4', 'x/2', L / 8, atX(moment, L / 4), 'kN·m/kN'),
+        check(
+          'Peak of the quarter-point moment line',
+          '3L/16',
+          (3 * L) / 16,
+          quarter.max.value,
+          'kN·m/kN',
+        ),
+        check('Position of that peak', 'L/4', L / 4, quarter.max.x, 'm'),
+      ];
+    },
+  },
+  {
+    id: 'V26',
+    title: 'Influence line for the central reaction of a two-span continuous beam',
+    reference: 'Müller-Breslau / three-moment equation: R_B = x(3L² − x²)/2L³',
+    run: () => {
+      const L = 5;
+      const model: StructureModel = {
+        nodes: [node('A', 0, 0), node('B', L, 0), node('C', 2 * L, 0)],
+        members: [frame('AB', 'A', 'B'), frame('BC', 'B', 'C')],
+        supports: [pinned('A'), roller('B'), roller('C')],
+        loads: [],
+      };
+      const line = influenceLine(
+        model,
+        { kind: 'reaction', node: 'B', component: 'fy' },
+        { pointsPerMember: 11, path: ['AB'] },
+      );
+      const rb = (x: number) => (x * (3 * L * L - x * x)) / (2 * L ** 3);
+      const atX = (x: number) => line.ordinates.find((o) => Math.abs(o.x - x) < 1e-9)?.value ?? NaN;
+      const support = influenceLine(
+        model,
+        { kind: 'memberForce', member: 'AB', x: L, component: 'M' },
+        { pointsPerMember: 11, path: ['AB'] },
+      );
+      return [
+        check('R_B with the load at 0.3L', 'x(3L² − x²)/2L³', rb(0.3 * L), atX(0.3 * L), 'kN/kN'),
+        check('R_B with the load at 0.5L', 'x(3L² − x²)/2L³', rb(0.5 * L), atX(0.5 * L), 'kN/kN'),
+        check('R_B with the load at 0.8L', 'x(3L² − x²)/2L³', rb(0.8 * L), atX(0.8 * L), 'kN/kN'),
+        check('R_B with the load over B', '1', 1, atX(L), 'kN/kN'),
+        check(
+          'Support moment, load at 0.5L',
+          '−x(L² − x²)/4L²',
+          -(0.5 * L * (L * L - 0.25 * L * L)) / (4 * L * L),
+          support.ordinates.find((o) => Math.abs(o.x - 0.5 * L) < 1e-9)?.value ?? NaN,
+          'kN·m/kN',
+        ),
+        check(
+          'Worst position for the support moment',
+          'L/√3 (between 0.5L and 0.6L)',
+          0.6 * L,
+          support.min.x,
+          'm',
         ),
       ];
     },

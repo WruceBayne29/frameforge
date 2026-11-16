@@ -13,7 +13,7 @@ IS 800:2007 steel checks instantly — no install, no licence, no backend.
 [![Deploy](https://github.com/WruceBayne29/frameforge/actions/workflows/deploy.yml/badge.svg)](https://github.com/WruceBayne29/frameforge/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Validation](https://img.shields.io/badge/validation-22%20textbook%20problems-success)
+![Validation](https://img.shields.io/badge/validation-26%20textbook%20problems-success)
 
 ![FrameForge: dragging a joint of a portal frame while the bending moment diagram updates live](docs/screenshots/hero.gif)
 
@@ -27,7 +27,7 @@ moment diagram, or find out why your truss is a mechanism. FrameForge does exact
 browser tab, with a solver you can read.
 
 The solver is written from scratch in TypeScript using the **direct stiffness method** — no FEM
-libraries — and is checked against 22 textbook problems to within 0.1 %.
+libraries — and is checked against 26 textbook problems to within 0.1 %.
 
 ## Features
 
@@ -65,6 +65,11 @@ libraries — and is checked against 22 textbook problems to within 0.1 %.
   buckling, shear and combined axial + bending interaction
 - Utilisation ratio shown as a colour on every member, with the full check breakdown per member
 
+**Beyond statics**
+
+- Modal analysis: natural frequencies and animated mode shapes from consistent mass matrices
+- Influence lines for reactions, shear, bending moment and deflection under a moving unit load
+
 **Sharing**
 
 - PDF calculation report: inputs, results, diagrams and design checks, drawn as vectors
@@ -88,6 +93,10 @@ libraries — and is checked against 22 textbook problems to within 0.1 %.
 | Axial forces in a Pratt truss | Edit by table |
 | --- | --- |
 | ![Pratt truss with tension and compression diagram](docs/screenshots/pratt-truss.png) | ![Loads table for a continuous beam](docs/screenshots/tables.png) |
+
+| Animated mode shapes | Influence lines |
+| --- | --- |
+| ![First sway mode of a multi-storey frame with its natural frequencies](docs/screenshots/modal.png) | ![Influence line for the support moment of a continuous beam](docs/screenshots/influence-line.png) |
 
 | PDF calculation report | Phone layout |
 | --- | --- |
@@ -185,7 +194,7 @@ by the test suite itself (`npm run validation`); the complete results, quantity 
 in **[VALIDATION.md](VALIDATION.md)**.
 
 <!-- validation:start -->
-**22 problems, 103 quantities, all within 0.1 %.**
+**26 problems, 122 quantities, all within 0.1 %.**
 
 | # | Problem | Closed-form checks | Quantities | Max error |
 | --- | --- | --- | ---: | ---: |
@@ -211,6 +220,10 @@ in **[VALIDATION.md](VALIDATION.md)**.
 | V20 | Simply supported beam with a counter-clockwise moment at midspan | M₀/L, −M₀/L, M₀/2, … | 5 | < 0.0001 % |
 | V21 | Inclined simply supported rafter under gravity load | wL/2, w·L·L_h/8, −(wL/2)·sinα, … | 4 | < 0.0001 % |
 | V22 | Cantilever propped by a spring | P/(k_s + 3EI/L³), P·k_s/(k_s + 3EI/L³), (P − F_s)·L (hogging) | 3 | < 0.0001 % |
+| V23 | Natural frequencies of a simply supported beam (modal analysis) | π²·√(EI/mL⁴), 4π²·√(EI/mL⁴), 9π²·√(EI/mL⁴), … | 4 | 0.0260 % |
+| V24 | Natural frequencies of a cantilever (modal analysis) | 1.8751²·√(EI/mL⁴), 4.6941²·√(EI/mL⁴), 2π/ω₁ | 3 | 0.0016 % |
+| V25 | Influence lines for a simply supported beam | 1 − x/L, 1 − x/L, L/4, … | 6 | < 0.0001 % |
+| V26 | Influence line for the central reaction of a two-span continuous beam | x(3L² − x²)/2L³, x(3L² − x²)/2L³, x(3L² − x²)/2L³, … | 6 | < 0.0001 % |
 <!-- validation:end -->
 
 ## Architecture
@@ -265,13 +278,13 @@ flowchart LR
 
 ```
 src/
-  solver/         direct stiffness method — framework-free, 99 % test coverage
+  solver/         direct stiffness method, modal analysis, influence lines — 99 % coverage
   design-codes/   IS 800:2007 member checks and the rolled-section table
   model/          the project model, unit conversion and pure editing operations
   examples/       nine ready-made structures
   io/             JSON files, share links, PDF report
   ui/             React components: canvas, toolbar, panels
-tests/validation/ 22 textbook problems with closed-form answers
+tests/validation/ 26 textbook problems with closed-form answers
 scripts/          Playwright end-to-end script and screenshot generator
 docs/             THEORY.md and screenshots
 ```
@@ -294,7 +307,8 @@ clean, coverage thresholds enforced in CI, and lint + tests + build run before e
 
 ## Assumptions and limits
 
-FrameForge does linear elastic, small-displacement analysis of plane structures. It does not model
+FrameForge does linear elastic, small-displacement analysis of plane structures. Modal analysis
+uses the members' self-weight as the only mass. It does not model
 shear deformation, P-Δ effects, material yielding or out-of-plane behaviour. The design module
 checks rolled ISMB and ISMC members for axial force and major-axis bending, uses the analysis loads
 as design loads, and applies one steel grade and effective length factor to the whole model.
@@ -306,6 +320,8 @@ It is a learning tool. Do not use it as the sole basis for a real design.
 - [x] Direct stiffness solver with validation suite
 - [x] Interactive editor, results view, IS 800 checks
 - [x] PDF, JSON and share-link export
+- [x] Modal analysis (natural frequencies, mode shapes)
+- [x] Influence lines for moving loads
 - [ ] Load cases and combinations with IS 875 / IS 800 load factors
 - [ ] Angle and hollow sections; built-up members
 - [ ] Self-weight and temperature loads

@@ -36,3 +36,13 @@ Calls made autonomously while building, newest last.
     read the note at the top of each file first.
 17. **README validation table is generated** by the validation test (`npm run validation`) between
     HTML comment markers, so it cannot drift from the suite.
+18. **Axial forces that are constant along a member are drawn on the member itself** (colour = sign,
+    thickness = magnitude) instead of as offset bands, which overlap unreadably in a truss.
+19. **Modal analysis uses member self-weight only** (steel density × area) and subdivides frame
+    members (6 / 3 / 1 elements depending on model size) so higher modes are accurate. All eigenvalues
+    come from a cyclic Jacobi solve — simple and robust at these sizes (≤ a few hundred DOF).
+20. **Influence lines run one full analysis per load position** rather than reusing the factorised
+    stiffness. It is the definition, it is exact at each sampled point, and it is fast enough here.
+    The default load path is the near-horizontal members.
+21. **3D space frames were not attempted.** The other two stretch features fit the existing 2D
+    architecture; 3D would need a new element, viewer and editor. Logged in PROGRESS.md and the roadmap.

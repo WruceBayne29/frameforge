@@ -1,6 +1,6 @@
 # Validation
 
-FrameForge's solver is checked against **22 textbook problems** (103 individual quantities) with closed-form answers. Every quantity must match to within **0.1 %**; in practice the error is at the level of floating-point round-off.
+FrameForge's solver is checked against **26 textbook problems** (122 individual quantities) with closed-form answers. Every quantity must match to within **0.1 %**; in practice the error is at the level of floating-point round-off.
 
 The table below is generated from the test suite itself (`tests/validation/cases.ts`), so it
 cannot drift from the code. Regenerate it with `npm run validation`. The suite runs in CI on
@@ -36,6 +36,10 @@ Deflections are positive upward, so downward deflections are negative.
 | V20 | Simply supported beam with a counter-clockwise moment at midspan | M₀/L, −M₀/L, M₀/2, … | 5 | < 0.0001 % |
 | V21 | Inclined simply supported rafter under gravity load | wL/2, w·L·L_h/8, −(wL/2)·sinα, … | 4 | < 0.0001 % |
 | V22 | Cantilever propped by a spring | P/(k_s + 3EI/L³), P·k_s/(k_s + 3EI/L³), (P − F_s)·L (hogging) | 3 | < 0.0001 % |
+| V23 | Natural frequencies of a simply supported beam (modal analysis) | π²·√(EI/mL⁴), 4π²·√(EI/mL⁴), 9π²·√(EI/mL⁴), … | 4 | 0.0260 % |
+| V24 | Natural frequencies of a cantilever (modal analysis) | 1.8751²·√(EI/mL⁴), 4.6941²·√(EI/mL⁴), 2π/ω₁ | 3 | 0.0016 % |
+| V25 | Influence lines for a simply supported beam | 1 − x/L, 1 − x/L, L/4, … | 6 | < 0.0001 % |
+| V26 | Influence line for the central reaction of a two-span continuous beam | x(3L² − x²)/2L³, x(3L² − x²)/2L³, x(3L² − x²)/2L³, … | 6 | < 0.0001 % |
 
 ## Full results
 
@@ -295,3 +299,50 @@ Reference: Compatibility: beam and spring in parallel
 | Tip deflection | P/(k_s + 3EI/L³) | -0.00993103 m | -0.00993103 m | 0.0000 % |
 | Spring force | P·k_s/(k_s + 3EI/L³) | 24.8276 kN | 24.8276 kN | 0.0000 % |
 | Fixed-end moment | (P − F_s)·L (hogging) | -44.6897 kN·m | -44.6897 kN·m | 0.0000 % |
+
+### V23 — Natural frequencies of a simply supported beam (modal analysis)
+
+Reference: Chopra, Dynamics of Structures, ch. 16: ω_n = (nπ)²·√(EI/mL⁴)
+
+| Quantity | Closed form | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| 1st circular frequency | π²·√(EI/mL⁴) | 169.482 rad/s | 169.482 rad/s | 0.0003 % |
+| 2nd circular frequency | 4π²·√(EI/mL⁴) | 677.927 rad/s | 677.962 rad/s | 0.0052 % |
+| 3rd circular frequency | 9π²·√(EI/mL⁴) | 1.5253e+3 rad/s | 1.5257e+3 rad/s | 0.0260 % |
+| 1st frequency | ω₁/2π | 26.9739 Hz | 26.9740 Hz | 0.0003 % |
+
+### V24 — Natural frequencies of a cantilever (modal analysis)
+
+Reference: Chopra, Dynamics of Structures, ch. 16: ω_n = (β_n L)²·√(EI/mL⁴)
+
+| Quantity | Closed form | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| 1st circular frequency | 1.8751²·√(EI/mL⁴) | 135.849 rad/s | 135.849 rad/s | 0.0000 % |
+| 2nd circular frequency | 4.6941²·√(EI/mL⁴) | 851.351 rad/s | 851.365 rad/s | 0.0016 % |
+| 1st period | 2π/ω₁ | 0.0462512 s | 0.0462512 s | 0.0000 % |
+
+### V25 — Influence lines for a simply supported beam
+
+Reference: Hibbeler, Structural Analysis, ch. 6 (unit load moving across the span)
+
+| Quantity | Closed form | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| R_A with the load at L/4 | 1 − x/L | 0.750000 kN/kN | 0.750000 kN/kN | 0.0000 % |
+| R_A with the load at 3L/4 | 1 − x/L | 0.250000 kN/kN | 0.250000 kN/kN | 0.0000 % |
+| Peak of the midspan-moment line | L/4 | 2.00000 kN·m/kN | 2.00000 kN·m/kN | 0.0000 % |
+| Midspan moment, load at L/4 | x/2 | 1.00000 kN·m/kN | 1.00000 kN·m/kN | 0.0000 % |
+| Peak of the quarter-point moment line | 3L/16 | 1.50000 kN·m/kN | 1.50000 kN·m/kN | 0.0000 % |
+| Position of that peak | L/4 | 2.00000 m | 2.00000 m | 0.0000 % |
+
+### V26 — Influence line for the central reaction of a two-span continuous beam
+
+Reference: Müller-Breslau / three-moment equation: R_B = x(3L² − x²)/2L³
+
+| Quantity | Closed form | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| R_B with the load at 0.3L | x(3L² − x²)/2L³ | 0.436500 kN/kN | 0.436500 kN/kN | 0.0000 % |
+| R_B with the load at 0.5L | x(3L² − x²)/2L³ | 0.687500 kN/kN | 0.687500 kN/kN | 0.0000 % |
+| R_B with the load at 0.8L | x(3L² − x²)/2L³ | 0.944000 kN/kN | 0.944000 kN/kN | 0.0000 % |
+| R_B with the load over B | 1 | 1.00000 kN/kN | 1.00000 kN/kN | 0.0000 % |
+| Support moment, load at 0.5L | −x(L² − x²)/4L² | -0.468750 kN·m/kN | -0.468750 kN·m/kN | 0.0000 % |
+| Worst position for the support moment | L/√3 (between 0.5L and 0.6L) | 3.00000 m | 3.00000 m | 0.0000 % |

@@ -1379,3 +1379,55 @@ button.icon {
 .diagram-N.compression .axial-bar {
   stroke: var(--compression);
 }
+
+/* ---------- Mode shapes and influence lines ---------- */
+
+.mode-shape {
+  fill: none;
+  stroke: var(--deformed);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mode-node {
+  fill: var(--deformed);
+  stroke: var(--canvas);
+  stroke-width: 1.2;
+}
+
+.influence-fill {
+  fill: var(--reaction);
+  fill-opacity: 0.16;
+  stroke: none;
+}
+
+.influence-line {
+  fill: none;
+  stroke: var(--reaction);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.influence-dot {
+  fill: var(--reaction);
+}
+
+.influence-label {
+  fill: var(--reaction);
+  font-weight: 700;
+}
+
+.influence-target circle {
+  fill: none;
+  stroke: var(--load);
+  stroke-width: 2;
+}
+
+.influence-target .influence-target-dot {
+  fill: var(--load);
+}
+
+.tabs button {
+  font-size: 12.5px;
+}

@@ -29,10 +29,11 @@ What it does:
 ▪️ Lets you drag a joint and watch the diagrams change live
 ▪️ Checks steel members to IS 800:2007 and colours each one by its utilisation ratio
 ▪️ Exports a PDF calculation report, and shares a whole model as a link
+▪️ Goes beyond statics: natural frequencies with animated mode shapes, and influence lines for moving loads
 
 The part I care about most is that the answers are right. The solver has no FEM library under it.
-It is checked against 22 textbook problems with closed-form answers (cantilevers, propped
-cantilevers, continuous beams, portal frames, Pratt and Warren trusses), 103 quantities in all,
+It is checked against 26 textbook problems with closed-form answers (cantilevers, propped
+cantilevers, continuous beams, portal frames, Pratt and Warren trusses, beam natural frequencies), 122 quantities in all,
 every one matching to within 0.1%. It also tells you when a structure is unstable and which node
 is free to move, instead of returning nonsense.
 

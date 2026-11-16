@@ -133,6 +133,30 @@ try {
     (await page.locator('.panel-body').innerText()).includes('Capacity'),
   );
 
+  // Advanced: natural frequencies with an animated mode shape, and influence lines.
+  await page.locator('.tabs button', { hasText: 'Advanced' }).click();
+  await page.locator('.panel-body button', { hasText: 'Compute natural frequencies' }).click();
+  await page.waitForSelector('.mode-shape');
+  const modeRows = await page.locator('.panel-body table tbody tr').count();
+  check('modal analysis lists natural frequencies', modeRows >= 3, `${modeRows} modes`);
+  const f1 = Number(
+    await page.locator('.panel-body table tbody tr').first().locator('td').nth(1).innerText(),
+  );
+  check('fundamental frequency is plausible', f1 > 1 && f1 < 100, `${f1} Hz`);
+  const frameA = await page.locator('.mode-shape').first().getAttribute('points');
+  await page.waitForTimeout(250);
+  const frameB = await page.locator('.mode-shape').first().getAttribute('points');
+  check('mode shape is animated', frameA !== frameB);
+  await page.locator('.panel-body button', { hasText: 'Show influence line' }).click();
+  await page.waitForSelector('.influence-line');
+  check('influence line is drawn', (await page.locator('.influence-line').count()) > 0);
+  check('influence line hides the normal diagrams', (await page.locator('.diagram').count()) === 0);
+  await page.locator('.panel-body button', { hasText: 'Clear' }).click();
+  check(
+    'clearing the influence line restores the diagrams',
+    (await page.locator('.diagram').count()) > 0,
+  );
+
   // Edit by table: move node N3 and check the model re-solves.
   await page.locator('.tabs button', { hasText: 'Tables' }).click();
   const statusBefore = await status();

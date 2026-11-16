@@ -2,8 +2,8 @@ import { createContext, useContext, useMemo, useReducer } from 'react';
 import type { Dispatch, ReactNode } from 'react';
 import { designMembers, toSolverModel } from '../model';
 import type { MemberDesign, Project, SupportKind } from '../model';
-import { analyze, SolverError } from '../solver';
-import type { AnalysisResult } from '../solver';
+import { analyze, influenceLine, modalAnalysis, SolverError } from '../solver';
+import type { AnalysisResult, InfluenceLine, InfluenceTarget, ModalResult } from '../solver';
 
 export type Tool = 'select' | 'node' | 'member' | 'support' | 'load' | 'delete';
 export type DiagramKind = 'none' | 'N' | 'V' | 'M';
@@ -38,7 +38,18 @@ export interface ToolOptions {
   section: string;
 }
 
+/** Optional extra analyses, computed only when asked for. */
+export interface AdvancedState {
+  /** Natural frequencies have been requested. */
+  modal: boolean;
+  /** Index of the mode shape being animated, or null. */
+  mode: number | null;
+  /** Response whose influence line is shown, or null. */
+  influence: InfluenceTarget | null;
+}
+
 export interface AppState {
+  advanced: AdvancedState;
   project: Project;
   past: Project[];
   future: Project[];
@@ -59,6 +70,7 @@ export type Action =
   | { type: 'tool'; tool: Tool }
   | { type: 'toolOptions'; options: Partial<ToolOptions> }
   | { type: 'view'; view: Partial<ViewOptions> }
+  | { type: 'advanced'; advanced: Partial<AdvancedState> }
   | { type: 'fit' };
 
 const HISTORY_LIMIT = 200;
@@ -76,6 +88,7 @@ export const DEFAULT_VIEW: ViewOptions = {
 
 export function initialState(project: Project): AppState {
   return {
+    advanced: { modal: false, mode: null, influence: null },
     project,
     past: [],
     future: [],
@@ -122,6 +135,7 @@ export function reducer(state: AppState, action: Action): AppState {
         future: [],
         selection: null,
         tool: 'select',
+        advanced: { modal: state.advanced.modal, mode: null, influence: null },
         view: {
           ...state.view,
           diagram: state.view.diagram === 'none' ? 'none' : allTruss ? 'N' : 'M',
@@ -171,6 +185,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, toolOptions: { ...state.toolOptions, ...action.options } };
     case 'view':
       return { ...state, view: { ...state.view, ...action.view } };
+    case 'advanced':
+      return { ...state, advanced: { ...state.advanced, ...action.advanced } };
     case 'fit':
       return { ...state, loadCount: state.loadCount + 1 };
   }
@@ -206,10 +222,68 @@ export function solveProject(project: Project): Solution {
   }
 }
 
+export interface Extras {
+  modal: ModalResult | null;
+  modalError: string | null;
+  influence: InfluenceLine | null;
+  influenceError: string | null;
+  /** Members the moving unit load travels along. */
+  influencePath: string[];
+}
+
+/** Members a moving load would normally run along: the roughly horizontal ones. */
+export function defaultLoadPath(project: Project): string[] {
+  const nodes = new Map(project.nodes.map((n) => [n.id, n]));
+  const flat = project.members.filter((m) => {
+    const a = nodes.get(m.i);
+    const b = nodes.get(m.j);
+    if (!a || !b) return false;
+    return Math.abs(b.y - a.y) <= 0.5 * Math.abs(b.x - a.x);
+  });
+  return (flat.length > 0 ? flat : project.members).map((m) => m.id);
+}
+
+const message = (e: unknown) => (e instanceof Error ? e.message : 'The calculation failed.');
+
+/** Runs the optional analyses that have been switched on; never throws. */
+export function solveExtras(project: Project, advanced: AdvancedState): Extras {
+  const extras: Extras = {
+    modal: null,
+    modalError: null,
+    influence: null,
+    influenceError: null,
+    influencePath: [],
+  };
+  if (project.members.length === 0) return extras;
+  if (advanced.modal) {
+    try {
+      // Subdivide members so higher modes are captured, within a sensible problem size.
+      const count = project.members.length;
+      const subdivide = count <= 12 ? 6 : count <= 30 ? 3 : 1;
+      extras.modal = modalAnalysis(toSolverModel(project), 6, { subdivide });
+    } catch (e) {
+      extras.modalError = message(e);
+    }
+  }
+  if (advanced.influence) {
+    extras.influencePath = defaultLoadPath(project);
+    try {
+      extras.influence = influenceLine(toSolverModel(project), advanced.influence, {
+        path: extras.influencePath,
+        pointsPerMember: 13,
+      });
+    } catch (e) {
+      extras.influenceError = message(e);
+    }
+  }
+  return extras;
+}
+
 interface StoreValue {
   state: AppState;
   dispatch: Dispatch<Action>;
   solution: Solution;
+  extras: Extras;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -217,7 +291,12 @@ const StoreContext = createContext<StoreValue | null>(null);
 export function StoreProvider({ initial, children }: { initial: Project; children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initial, initialState);
   const solution = useMemo(() => solveProject(state.project), [state.project]);
-  const value = useMemo(() => ({ state, dispatch, solution }), [state, solution]);
+  const { modal, influence } = state.advanced;
+  const extras = useMemo(
+    () => solveExtras(state.project, { modal, mode: null, influence }),
+    [state.project, modal, influence],
+  );
+  const value = useMemo(() => ({ state, dispatch, solution, extras }), [state, solution, extras]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

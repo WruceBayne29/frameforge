@@ -1,6 +1,7 @@
 # Progress
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE — all eight milestones, final deliverables, self-review and two of the three
+stretch features are done and deployed at https://wrucebayne29.github.io/frameforge/
 
 ## Done
 - Repo scaffold: Vite + React + TS 6, Vitest, ESLint, Prettier.
@@ -24,14 +25,19 @@
 - Final docs: README (full), docs/THEORY.md, VALIDATION.md, CONTRIBUTING, templates, LICENSE,
   LINKEDIN_POST.md, CV_BULLETS.md.
 
-## In progress
-- Self-review of the live site, then stretch features.
+- Self-review: clicked through every feature on the live site with Playwright (`npm run e2e`,
+  69 checks); fixed phone-width overflow, view re-fit on resize, truss axial view, support glyph
+  orientation, label clutter, clipped reaction labels.
+- Stretch: modal analysis (`src/solver/modal.ts`, animated mode shapes) and influence lines
+  (`src/solver/influence.ts`), both validated (V23–V26) and exposed in the Advanced tab.
 
-## Exact next step
-- Stretch 1: modal analysis (`src/solver/modal.ts`: consistent mass matrix + generalised
-  eigenproblem, validated against beam natural-frequency formulas) with a UI tab.
-- Stretch 2: influence lines (`src/solver/influence.ts`) with a UI control.
-- Then refresh metrics in README / CV_BULLETS / LINKEDIN_POST, re-run `npm run e2e`, mark COMPLETE.
+## Not done
+- **3D space frames** (third stretch item). It needs a new 6-DOF element, a 3D viewer and a new
+  editor, which is a second project rather than an increment; it is on the README roadmap.
+
+## If you resume
+- Nothing is in progress. `npm run check` and `npm run e2e` should both pass.
+- Ideas, in order: load combinations (IS 875), angle sections for trusses, self-weight loads.
 
 ## Milestone checklist
 - [x] 1. Solver core + validation suite
@@ -43,5 +49,5 @@
 - [x] 7. Export (PDF / JSON / URL)
 - [x] 8. Polish
 - [x] Final docs & deliverables
-- [ ] Self-review on live site
-- [ ] Stretch features
+- [x] Self-review on live site
+- [x] Stretch features: modal analysis, influence lines (3D space frames not done)
