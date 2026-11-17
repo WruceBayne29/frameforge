@@ -1021,12 +1021,22 @@ describe('solid self-weight', () => {
 
     // Stress: linear in height. No load acts on the incompatible modes, so each element
     // carries the mean of the exact stress: exact at the element centres ...
-    if (nu > 0) throw new Error(JSON.stringify(sol.results.map((r) => [r.center.sxx, r.center.syy, r.center.szz, r.center.txy, r.center.tyz, r.center.tzx, r.corners[0].sxx, r.corners[3].sxx].map((v) => +v.toFixed(3)))));
     sol.results.forEach((r, e) => {
       const yc = (mesh.cells[e][1] + 0.5) * he;
       expect(r.center.syy).toBeCloseTo(-gamma * (height - yc), 8);
-      for (const key of ['sxx', 'szz', 'txy', 'tyz', 'tzx'] as const) {
-        expect(Math.abs(r.center[key])).toBeLessThan(nu === 0 ? 1e-8 : 1e-3 * gamma * height);
+      // The other components vanish for ν = 0. For ν ≠ 0 the element-wise constant axial
+      // stress cannot follow the linearly varying lateral strain up to the free top, which
+      // leaves a small self-equilibrated lateral stress there (4.5 % of the weight of one
+      // element, γ·hₑ, so it vanishes with mesh refinement). It alternates in sign and decays
+      // by a factor 2 + √3 ≈ 3.7 per element away from the top.
+      const fromTop = n - 1 - e;
+      const tolNormal = nu === 0 ? 1e-8 : 0.05 * gamma * he * 3 ** -fromTop;
+      for (const key of ['sxx', 'szz'] as const) {
+        expect(Math.abs(r.center[key])).toBeLessThan(tolNormal);
+      }
+      expect(r.center.sxx).toBeCloseTo(r.center.szz, 8);
+      for (const key of ['txy', 'tyz', 'tzx'] as const) {
+        expect(Math.abs(r.center[key])).toBeLessThan(1e-8);
       }
       // ... and within half an element of weight at its nodes.
       r.corners.forEach((corner, i) => {

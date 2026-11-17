@@ -11,8 +11,8 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      include: ['src/solver/**/*.ts', 'src/design-codes/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/index.ts', '**/types.ts'],
+      include: ['src/solver/**/*.ts', 'src/solver3d/**/*.ts', 'src/design-codes/**/*.ts'],
+      exclude: ['**/*.test.ts', '**/index.ts', '**/types.ts', '**/contract.ts'],
       reporter: ['text', 'json-summary', 'html'],
       thresholds: { lines: 90, functions: 90, statements: 90, branches: 80 },
     },

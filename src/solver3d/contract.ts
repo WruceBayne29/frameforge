@@ -25,7 +25,9 @@
  * and `SolidElement` extend `ElementMatrices` with module-private recovery data.
  *
  * Element modules throw `SolverError('INVALID_MODEL', …, { memberId: element id })` from
- * `../solver/errors` for bad geometry or properties.
+ * `../solver/errors` for bad geometry or properties. `lineElement` also throws
+ * `SolverError('UNSTABLE', …, { memberId })` when a member's own end releases turn it into a
+ * mechanism in a direction in which it carries load.
  */
 
 export interface ElementMatrices {
@@ -37,4 +39,10 @@ export interface ElementMatrices {
   k: number[][];
   /** Equivalent nodal loads in global axes (element loads + self-weight), length n. */
   f: number[];
+  /**
+   * Notes for the user that the element module could not express otherwise (e.g. a torque on
+   * a truss member that was ignored, a warped plate). The assembler copies them into
+   * `AnalysisResult3D.warnings`.
+   */
+  warnings?: string[];
 }

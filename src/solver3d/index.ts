@@ -1,0 +1,10 @@
+export { analyze3d, validateModel3d } from './analyze';
+export { SolverError } from '../solver/errors';
+export type { SolverErrorCode } from '../solver/errors';
+export type * from './types';
+export { memberAxes } from './line';
+export { plateAxes } from './plate';
+export type { PlateAxes } from './plate';
+export { SOLID_FACES } from './solid';
+export { SkylineMatrix, rcmOrder } from './sparse';
+export type { FactorOptions, FactorResult } from './sparse';
