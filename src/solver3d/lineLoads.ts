@@ -139,10 +139,16 @@ export function resolveLineLoads(
       out.distributed.push({ a, b, w1, w2 });
     } else if (load.kind === 'point') {
       const a = checkPosition(memberId, load.a, L);
-      out.points.push({ a, p: resolveDirection(checkValue(memberId, load.P), load.direction, axes) });
+      out.points.push({
+        a,
+        p: resolveDirection(checkValue(memberId, load.P), load.direction, axes),
+      });
     } else {
       const a = checkPosition(memberId, load.a, L);
-      out.moments.push({ a, m: resolveDirection(checkValue(memberId, load.M), load.direction, axes) });
+      out.moments.push({
+        a,
+        m: resolveDirection(checkValue(memberId, load.M), load.direction, axes),
+      });
     }
   }
   return out;
@@ -180,7 +186,11 @@ const PLANE_Z = { dofs: [2, 4, 8, 10], axis: 2, rot: -1 } as const;
  * end moments; a torque about the axis of a truss member cannot be carried and is not
  * included (see `lineElement`, which drops it with a warning).
  */
-export function equivalentLineLoads(loads: LocalLineLoads, L: number, type: MemberType3D): number[] {
+export function equivalentLineLoads(
+  loads: LocalLineLoads,
+  L: number,
+  type: MemberType3D,
+): number[] {
   const f = new Array<number>(12).fill(0);
   const l1 = (x: number) => 1 - x / L;
   const l2 = (x: number) => x / L;
@@ -307,7 +317,8 @@ export function internalForces(
     my += m.m[1];
     mz -= m.m[2];
   }
-  return { N: -fx, Vy: fy, Vz: fz, T: -mx, My: my, Mz: mz };
+  // `0 - x` rather than `-x` so that an unloaded member reports +0, not −0.
+  return { N: 0 - fx, Vy: fy, Vz: fz, T: 0 - mx, My: my, Mz: mz };
 }
 
 /** Positions where the internal-force diagrams have kinks (load start/end) or jumps. */

@@ -83,7 +83,23 @@ export function vonMises3(
   );
 }
 
-/** Principal stresses of a 3D stress state, sorted s1 >= s2 >= s3 (closed form). */
+/** Index pairs (p, q) rotated in one Jacobi sweep of a 3 × 3 matrix, with the third index r. */
+const JACOBI_PAIRS: ReadonlyArray<readonly [number, number, number]> = [
+  [0, 1, 2],
+  [0, 2, 1],
+  [1, 2, 0],
+];
+
+/**
+ * Principal stresses of a 3D stress state, sorted s1 >= s2 >= s3 (same unit as the input).
+ *
+ * Computed by cyclic Jacobi rotations of the 3 × 3 stress tensor rather than by the
+ * trigonometric (Cardano) closed form: that formula obtains the angle from the stress
+ * invariants, which loses half of the significant digits whenever two principal stresses
+ * coincide (uniaxial, equibiaxial, nearly hydrostatic states), giving errors of about
+ * 1e-8·|σ| and occasionally s2 < s3. Jacobi rotations are accurate to rounding for every
+ * state, and a state without shear components is returned exactly.
+ */
 export function principal3(
   sxx: number,
   syy: number,
@@ -92,20 +108,50 @@ export function principal3(
   tyz: number,
   tzx: number,
 ): [number, number, number] {
-  const mean = (sxx + syy + szz) / 3;
-  const dx = sxx - mean;
-  const dy = syy - mean;
-  const dz = szz - mean;
-  // Second and third invariants of the deviatoric stress.
-  const j2 = 0.5 * (dx * dx + dy * dy + dz * dz) + txy * txy + tyz * tyz + tzx * tzx;
-  if (!(j2 > 0)) return [mean, mean, mean];
-  const j3 = dx * dy * dz + 2 * txy * tyz * tzx - dx * tyz * tyz - dy * tzx * tzx - dz * txy * txy;
-  const r = Math.sqrt(j2 / 3);
-  const cos3 = Math.max(-1, Math.min(1, j3 / (2 * r * r * r)));
-  const angle = Math.acos(cos3) / 3;
-  const s1 = mean + 2 * r * Math.cos(angle);
-  const s3 = mean + 2 * r * Math.cos(angle + (2 * Math.PI) / 3);
-  const s2 = 3 * mean - s1 - s3;
+  const a = [
+    [sxx, txy, tzx],
+    [txy, syy, tyz],
+    [tzx, tyz, szz],
+  ];
+  const size = Math.max(
+    Math.abs(sxx),
+    Math.abs(syy),
+    Math.abs(szz),
+    Math.abs(txy),
+    Math.abs(tyz),
+    Math.abs(tzx),
+  );
+  // The off-diagonal terms shrink quadratically from sweep to sweep; four to six sweeps
+  // bring them far below the rounding error of the diagonal (the cap is only a safeguard).
+  for (let sweep = 0; sweep < 30; sweep++) {
+    const off = Math.abs(a[0][1]) + Math.abs(a[0][2]) + Math.abs(a[1][2]);
+    if (!(off > Number.EPSILON * Number.EPSILON * size)) break;
+    for (const [p, q, r] of JACOBI_PAIRS) {
+      const apq = a[p][q];
+      if (apq === 0) continue;
+      // Rotation in the p–q plane that annihilates a_pq; t = tan(angle), |angle| <= 45°.
+      const theta = (a[q][q] - a[p][p]) / (2 * apq);
+      const t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.hypot(theta, 1));
+      const c = 1 / Math.hypot(t, 1);
+      const s = t * c;
+      a[p][p] -= t * apq;
+      a[q][q] += t * apq;
+      a[p][q] = 0;
+      a[q][p] = 0;
+      const arp = a[r][p];
+      const arq = a[r][q];
+      a[r][p] = c * arp - s * arq;
+      a[p][r] = a[r][p];
+      a[r][q] = s * arp + c * arq;
+      a[q][r] = a[r][q];
+    }
+  }
+  let s1 = a[0][0];
+  let s2 = a[1][1];
+  let s3 = a[2][2];
+  if (s1 < s2) [s1, s2] = [s2, s1];
+  if (s2 < s3) [s2, s3] = [s3, s2];
+  if (s1 < s2) [s1, s2] = [s2, s1];
   return [s1, s2, s3];
 }
 
