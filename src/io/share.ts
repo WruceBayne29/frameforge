@@ -34,15 +34,20 @@ function compact(project: Project): unknown {
   return JSON.parse(JSON.stringify(project)) as unknown;
 }
 
-export async function encodeProject(project: Project): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(compact(project)));
+/**
+ * Encodes any JSON value as a share payload (`1.` + deflated or `0.` + plain, base64url).
+ * Shared by the 2D and 3D share links.
+ */
+export async function encodeJson(value: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
   if (typeof CompressionStream === 'function') {
     return `1.${toBase64Url(await pipe(bytes, new CompressionStream('deflate-raw')))}`;
   }
   return `0.${toBase64Url(bytes)}`;
 }
 
-export async function decodeProject(payload: string): Promise<Project> {
+/** Decodes a share payload back into the JSON value, which is still untrusted data. */
+export async function decodeJson(payload: string): Promise<unknown> {
   const dot = payload.indexOf('.');
   const mode = payload.slice(0, dot);
   const body = payload.slice(dot + 1);
@@ -57,11 +62,19 @@ export async function decodeProject(payload: string): Promise<Project> {
       }
       bytes = await pipe(bytes, new DecompressionStream('deflate-raw'));
     }
-    return parseProject(JSON.parse(new TextDecoder().decode(bytes)));
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
   } catch (e) {
     if (e instanceof ProjectFormatError) throw e;
     throw new ProjectFormatError('This link is damaged or incomplete.');
   }
+}
+
+export async function encodeProject(project: Project): Promise<string> {
+  return encodeJson(compact(project));
+}
+
+export async function decodeProject(payload: string): Promise<Project> {
+  return parseProject(await decodeJson(payload));
 }
 
 /** Builds a full share URL for the given page URL. */
