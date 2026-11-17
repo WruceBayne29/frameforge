@@ -1,7 +1,8 @@
 # Progress
 
-**Status:** COMPLETE — all eight milestones, final deliverables, self-review and two of the three
-stretch features are done and deployed at https://wrucebayne29.github.io/frameforge/
+**Status:** COMPLETE — all eight milestones, final deliverables, self-review and all three
+stretch features are done. The 2D app is deployed at https://wrucebayne29.github.io/frameforge/;
+the 3D workspace is complete on the `feat/3d-space-structures` branch (not yet merged or deployed).
 
 ## Done
 - Repo scaffold: Vite + React + TS 6, Vitest, ESLint, Prettier.
@@ -31,13 +32,29 @@ stretch features are done and deployed at https://wrucebayne29.github.io/framefo
 - Stretch: modal analysis (`src/solver/modal.ts`, animated mode shapes) and influence lines
   (`src/solver/influence.ts`), both validated (V23–V26) and exposed in the Advanced tab.
 
+- **3D workspace** (branch `feat/3d-space-structures`, decisions 22–35):
+  - `src/solver3d/`: 6-DOF truss, 12-DOF beam with end releases, 4-node flat shell (MITC4 +
+    QM6 + drilling), 8-node incompatible-mode hexahedron, member / plate / solid-face loads and
+    self-weight, settlements and springs, skyline LDLᵀ with RCM ordering, mechanism handling.
+    99.9 % statement coverage.
+  - `src/model3d/` (units, edit operations, frame / plate-mesh / solid-block generators,
+    conversion from 2D), `src/io/projectFile3d.ts` + `share3d.ts`, `src/examples3d/` (9 examples),
+    `src/ui3d/` (lazy-loaded three.js workspace, 2D | 3D switch), `scripts/e2e3d.mjs`.
+  - 3D validation suite: 20 problems, 103 quantities, each within its stated tolerance →
+    `VALIDATION_3D.md` (`npm run validation3d`).
+  - Docs: README 3D section, docs/THEORY_3D.md, DECISIONS 22–35.
+- Test suite: 1056 tests (27 files), coverage 99.7 % of statements over both solvers and the
+  design code.
+
 ## Not done
-- **3D space frames** (third stretch item). It needs a new 6-DOF element, a 3D viewer and a new
-  editor, which is a second project rather than an increment; it is on the README roadmap.
+- 3D: load combinations, PDF report, IS 800 design check, modal analysis and influence lines;
+  a drawing tool for solids; settlements and springs in the 3D editor (the solver supports them);
+  solving in a Web Worker.
 
 ## If you resume
-- Nothing is in progress. `npm run check` and `npm run e2e` should both pass.
-- Ideas, in order: load combinations (IS 875), angle sections for trusses, self-weight loads.
+- Nothing is in progress. `npm run check`, `npm run e2e` and `npm run e2e3d` should pass.
+- Merge `feat/3d-space-structures` into `main` to deploy the 3D workspace.
+- Ideas, in order: load combinations (IS 875), angle sections for trusses, 3D design checks.
 
 ## Milestone checklist
 - [x] 1. Solver core + validation suite
@@ -50,4 +67,5 @@ stretch features are done and deployed at https://wrucebayne29.github.io/framefo
 - [x] 8. Polish
 - [x] Final docs & deliverables
 - [x] Self-review on live site
-- [x] Stretch features: modal analysis, influence lines (3D space frames not done)
+- [x] Stretch features: modal analysis, influence lines
+- [x] 3D space structures: truss, beam, plate and solid elements, workspace, validation
