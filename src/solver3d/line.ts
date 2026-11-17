@@ -74,11 +74,21 @@ export function memberAxes(xi: Vec3, xj: Vec3, beta = 0): { L: number; x: Vec3; 
     throw new SolverError('INVALID_MODEL', 'A member has zero length or invalid coordinates.');
   }
   const x: Vec3 = [d[0] / L, d[1] / L, d[2] / L];
+  // `+ 0` turns the −0 components a cross product can produce into +0.
+  const tidy = (v: Vec3): Vec3 => [v[0] + 0, v[1] + 0, v[2] + 0];
   // Vertical when the horizontal projection of the unit axis vanishes.
   const vertical = Math.hypot(x[0], x[2]) < 1e-9;
-  const z0: Vec3 = vertical ? [0, 0, 1] : normalize(cross(x, [0, 1, 0]));
-  // `+ 0` turns the −0 components a cross product can produce into +0.
-  const y0 = cross(z0, x).map((c) => c + 0) as Vec3;
+  let y0: Vec3;
+  let z0: Vec3;
+  if (vertical) {
+    // z = global Z, y = z × x. Built as y = Z × x (normalised) and z = x × y so that the
+    // triad stays exactly orthonormal when the member is only vertical to within the tolerance.
+    y0 = tidy(normalize(cross([0, 0, 1], x)));
+    z0 = tidy(cross(x, y0));
+  } else {
+    z0 = tidy(normalize(cross(x, [0, 1, 0])));
+    y0 = tidy(cross(z0, x));
+  }
   if (beta === 0) return { L, x, y: y0, z: z0 };
   const c = Math.cos(beta);
   const s = Math.sin(beta);

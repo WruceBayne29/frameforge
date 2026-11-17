@@ -295,6 +295,46 @@ describe('memberAxes', () => {
     expect(down.y).toEqual([1, 0, 0]);
   });
 
+  it('stays orthonormal for members that are vertical only to within the tolerance', () => {
+    const almost: Vec3[] = [
+      [6e-10, 2, -8e-10],
+      [-9e-10, -5, 3e-10],
+    ];
+    for (const d of almost) {
+      for (const beta of [0, 1.1]) {
+        const { x, y, z } = memberAxes([0, 0, 0], d, beta);
+        for (const v of [x, y, z]) near(norm(v), 1, 1e-14);
+        expect(Math.abs(dot(x, y))).toBeLessThan(1e-14);
+        expect(Math.abs(dot(y, z))).toBeLessThan(1e-14);
+        expect(Math.abs(dot(z, x))).toBeLessThan(1e-14);
+        const handed = cross(x, y);
+        for (let c = 0; c < 3; c++) expect(Math.abs(handed[c] - z[c])).toBeLessThan(1e-14);
+      }
+      // Still the vertical convention: local z is global Z (made perpendicular to x).
+      const { y, z } = memberAxes([0, 0, 0], d);
+      near(z[2], 1, 1e-14);
+      near(y[0], -Math.sign(d[1]), 1e-14);
+    }
+    // The element built on such a member is free of rigid-body forces to rounding.
+    const a: Vec3 = [1, 0.5, -2];
+    const b = add(a, almost[0]);
+    const k = lineElement(beam('m', 'A', 'B', { beta: 0.6 }), a, b, [], ZERO).k;
+    let kmax = 0;
+    for (const row of k) for (const v of row) kmax = Math.max(kmax, Math.abs(v));
+    for (let mode = 0; mode < 6; mode++) {
+      const d = mode < 3 ? UNIT[mode] : ZERO;
+      const w = mode < 3 ? ZERO : UNIT[mode - 3];
+      for (const value of matVec(k, [...rigid(a, d, w), ...rigid(b, d, w)])) {
+        expect(Math.abs(value)).toBeLessThan(1e-13 * kmax);
+      }
+    }
+    // Just outside the tolerance the member counts as inclined: local z is horizontal.
+    const leaning = memberAxes([0, 0, 0], [1e-6, 2, 0]);
+    expect(leaning.z[1]).toBe(0);
+    near(leaning.z[2], 1, 1e-14);
+    expect(leaning.y[1]).toBeGreaterThan(0);
+  });
+
   it('rotates y towards z with beta (right-hand rule about x)', () => {
     const quarter = memberAxes([0, 0, 0], [3, 0, 0], Math.PI / 2);
     near(dot(quarter.y, [0, 0, 1]), 1, 1e-14);
