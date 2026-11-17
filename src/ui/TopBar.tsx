@@ -1,10 +1,13 @@
 import { useRef, useState } from 'react';
 import { EXAMPLES } from '../examples';
 import { parseProjectText, ProjectFormatError, serializeProject } from '../io/projectFile';
+import { detectProjectKind, parseProject3DText } from '../io/projectFile3d';
 import { shareUrl } from '../io/share';
 import { emptyProject } from '../model';
+import { from2D } from '../model3d/generate';
 import { useStore } from './store';
 import { notify } from './toast';
+import { useWorkspace, WorkspaceSwitch } from './workspace';
 
 export interface TopBarProps {
   theme: 'light' | 'dark';
@@ -34,6 +37,7 @@ function slug(name: string): string {
 
 export function TopBar({ theme, onToggleTheme, onHelp }: TopBarProps) {
   const { state, dispatch, solution } = useStore();
+  const { open3D } = useWorkspace();
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const project = state.project;
@@ -41,7 +45,13 @@ export function TopBar({ theme, onToggleTheme, onHelp }: TopBarProps) {
 
   const openFile = async (file: File) => {
     try {
-      dispatch({ type: 'load', project: parseProjectText(await file.text()) });
+      const text = await file.text();
+      if (detectProjectKind(text) === '3d') {
+        // A space-structure file belongs to the 3D workspace.
+        open3D(parseProject3DText(text));
+        return;
+      }
+      dispatch({ type: 'load', project: parseProjectText(text) });
       notify(`Opened ${file.name}`);
     } catch (e) {
       notify(e instanceof ProjectFormatError ? e.message : 'Could not read that file.', 'error');
@@ -101,6 +111,7 @@ export function TopBar({ theme, onToggleTheme, onHelp }: TopBarProps) {
         </svg>
         <span>FrameForge</span>
       </div>
+      <WorkspaceSwitch />
       <select
         className="example-picker"
         data-tour="examples"
@@ -163,6 +174,15 @@ export function TopBar({ theme, onToggleTheme, onHelp }: TopBarProps) {
           onClick={share}
         >
           Share
+        </button>
+        <button
+          type="button"
+          className="ghost"
+          title="Convert this model to a 3D model and continue in the 3D workspace"
+          disabled={project.nodes.length === 0}
+          onClick={() => open3D(from2D(project))}
+        >
+          Open in 3D
         </button>
         <button
           type="button"

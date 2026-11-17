@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { EXAMPLES } from '../examples';
 import { parseProjectText, serializeProject } from '../io/projectFile';
 import { decodeProject, payloadFromHash } from '../io/share';
@@ -15,34 +15,12 @@ import { TopBar } from './TopBar';
 import { Tour } from './Tour';
 import { CanvasControls, ViewBar } from './ViewBar';
 import { fmt, mm } from './format';
+import { readStored as read, writeStored as write } from './storage';
+import { useTheme } from './theme';
 import './styles.css';
-
-type Theme = 'light' | 'dark';
-
-function initialTheme(): Theme {
-  const saved = read('frameforge-theme');
-  if (saved === 'light' || saved === 'dark') return saved;
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
 
 const STORAGE_KEY = 'frameforge-project';
 const TOUR_KEY = 'frameforge-tour-done';
-
-function read(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function write(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Storage may be full or disabled; the app works without it.
-  }
-}
 
 /** The model from the last visit, or the first example for new visitors. */
 function initialProject(): Project {
@@ -82,6 +60,12 @@ function Persistence() {
     const timer = window.setTimeout(() => write(STORAGE_KEY, serializeProject(state.project)), 400);
     return () => window.clearTimeout(timer);
   }, [state.project]);
+  // Save straight away when leaving for the 3D workspace, so no recent edit is lost.
+  const latest = useRef(state.project);
+  useEffect(() => {
+    latest.current = state.project;
+  }, [state.project]);
+  useEffect(() => () => write(STORAGE_KEY, serializeProject(latest.current)), []);
   return null;
 }
 
@@ -203,16 +187,12 @@ function Stage() {
   );
 }
 
-export function App() {
-  const [theme, setTheme] = useState<Theme>(initialTheme);
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    write('frameforge-theme', theme);
-  }, [theme]);
+export function App({ incoming }: { incoming?: Project }) {
+  const [theme, toggleTheme] = useTheme();
 
   const [help, setHelp] = useState(false);
   const [tour, setTour] = useState(() => read(TOUR_KEY) !== '1' && !navigator.webdriver);
-  const [initial] = useState(initialProject);
+  const [initial] = useState(() => incoming ?? initialProject());
   const openHelp = useCallback(() => setHelp(true), []);
   const closeTour = useCallback(() => {
     setTour(false);
@@ -224,7 +204,7 @@ export function App() {
       <div className="app">
         <TopBar
           theme={theme}
-          onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          onToggleTheme={toggleTheme}
           onHelp={openHelp}
         />
         <Shortcuts onHelp={openHelp} />
