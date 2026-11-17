@@ -328,11 +328,12 @@ describe('memberAxes', () => {
         expect(Math.abs(value)).toBeLessThan(1e-13 * kmax);
       }
     }
-    // Just outside the tolerance the member counts as inclined: local z is horizontal.
-    const leaning = memberAxes([0, 0, 0], [1e-6, 2, 0]);
-    expect(leaning.z[1]).toBe(0);
-    near(leaning.z[2], 1, 1e-14);
+    // Just outside the tolerance the member counts as inclined: local z = x × Y is horizontal,
+    // which for a member leaning towards +Z is −X rather than the vertical convention's +Z.
+    const leaning = memberAxes([0, 0, 0], [0, 2, 1e-6]);
+    expect(leaning.z).toEqual([-1, 0, 0]);
     expect(leaning.y[1]).toBeGreaterThan(0);
+    near(leaning.y[2], -1, 1e-12);
   });
 
   it('rotates y towards z with beta (right-hand rule about x)', () => {
@@ -545,6 +546,38 @@ describe('skew cantilever with beta ≠ 0', () => {
     }
     near(res.maxAbsMy.value, P * L, 1e-9);
     near(res.maxAbsVz.value, -P, 1e-9);
+    // The deflection extreme is measured from the chord in this plane as well.
+    const sag = (x: number) => (P * x * (L - x) * (2 * L - x)) / (6 * E * Iy);
+    near(res.maxAbsDeflection.value, Math.max(...res.stations.map((s) => sag(s.x))), 1e-9);
+    expect(res.maxAbsDeflection.value).toBeLessThan(0.2 * w);
+  });
+
+  it('biaxial tip force: maxAbsDeflection is the resultant sag from the chord, at its station', () => {
+    const { d, res } = tip([0, P, -2 * P], ZERO);
+    expectLocal(
+      d,
+      [0, (P * L ** 3) / (3 * E * Iz), (-2 * P * L ** 3) / (3 * E * Iy)],
+      (2 * P * L ** 3) / (3 * E * Iy),
+    );
+    // Both planes have the same shape x(L−x)(2L−x)/6, scaled by P/EIz and −2P/EIy.
+    const shape = (x: number) => (x * (L - x) * (2 * L - x)) / 6;
+    const factor = Math.hypot(P / (E * Iz), (2 * P) / (E * Iy));
+    let worst = res.stations[0];
+    for (const s of res.stations) if (shape(s.x) > shape(worst.x)) worst = s;
+    near(res.maxAbsDeflection.value, factor * shape(worst.x), 1e-9);
+    expect(res.maxAbsDeflection.x).toBe(worst.x);
+    expect(worst.x).toBeGreaterThan(0);
+    expect(worst.x).toBeLessThan(L);
+    // The absolute deflection is largest at the tip, so the chord really was subtracted.
+    const tipStation = res.stations[res.stations.length - 1];
+    expect(Math.hypot(tipStation.v, tipStation.w)).toBeGreaterThan(4 * res.maxAbsDeflection.value);
+    // Extremes carry the sign of the governing value and its position.
+    near(res.maxAbsVy.value, -P, 1e-9);
+    near(res.maxAbsVz.value, 2 * P, 1e-9);
+    near(res.maxAbsMz.value, P * L, 1e-9);
+    near(res.maxAbsMy.value, -2 * P * L, 1e-9);
+    expect(res.maxAbsMy.x).toBe(0);
+    near(res.maxAbsTorsion.value, 0, 1e-9, P * L);
   });
 
   it('tip moments: ML/EI rotation and ML²/2EI deflection in each plane', () => {
@@ -1456,6 +1489,241 @@ describe('space frame closed forms', () => {
   });
 });
 
+describe('subdivision consistency', () => {
+  // One loaded member must give exactly the same answer as the same member cut into pieces at
+  // the load points, with the distributed loads applied piece by piece and the concentrated
+  // loads applied as nodal loads at the cuts. This checks the equivalent nodal loads, the
+  // condensation of releases and the recovery along the member against plain stiffness
+  // analysis, for a skew member with roll and loads in every direction.
+  const a: Vec3 = [0.5, 1, -1];
+  const b: Vec3 = [4.5, 3.5, 1.5];
+  const beta = 0.8;
+  const axes = memberAxes(a, b, beta);
+  const L = axes.L;
+  const cuts = [0, 0.2 * L, 0.45 * L, 0.7 * L, L];
+  const loads: MemberLoad3D[] = [
+    {
+      kind: 'distributed',
+      member: 'm',
+      direction: 'localY',
+      w1: 3,
+      w2: -5,
+      a: cuts[1],
+      b: cuts[3],
+    },
+    { kind: 'distributed', member: 'm', direction: 'globalY', w1: -4 },
+    { kind: 'distributed', member: 'm', direction: 'globalZ', w1: 1, w2: 2.5, a: 0, b: cuts[2] },
+    { kind: 'distributed', member: 'm', direction: 'localX', w1: 2, w2: 6, a: cuts[2], b: L },
+    { kind: 'point', member: 'm', direction: 'globalX', P: 7, a: cuts[1] },
+    { kind: 'point', member: 'm', direction: 'localZ', P: -3, a: cuts[3] },
+    { kind: 'moment', member: 'm', direction: 'globalY', M: 5, a: cuts[2] },
+    { kind: 'moment', member: 'm', direction: 'localX', M: -4, a: cuts[1] },
+    { kind: 'moment', member: 'm', direction: 'localZ', M: 2, a: cuts[3] },
+  ];
+  const unit = (direction: MemberLoadDirection): Vec3 =>
+    ({
+      localX: axes.x,
+      localY: axes.y,
+      localZ: axes.z,
+      globalX: UNIT[0],
+      globalY: UNIT[1],
+      globalZ: UNIT[2],
+    })[direction];
+
+  const RELEASE_CASES: Array<[string, EndRelease | undefined, EndRelease | undefined]> = [
+    ['no releases', undefined, undefined],
+    ['fx + mz released at i, my released at j', { fx: true, mz: true }, { my: true }],
+    [
+      'fy + my released at i, mx + fz released at j',
+      { fy: true, my: true },
+      { mx: true, fz: true },
+    ],
+  ];
+
+  it.each(RELEASE_CASES)('%s', (_name, releaseI, releaseJ) => {
+    const whole = solveModel(
+      {
+        nodes: { A: a, B: b },
+        members: [beam('m', 'A', 'B', { beta, releaseI, releaseJ })],
+        loads,
+        fixed: { A: ALL, B: ALL },
+      },
+      3,
+    );
+
+    // The same member in four pieces N0–N1–N2–N3–N4.
+    const nodes: Record<string, Vec3> = {};
+    cuts.forEach((c, k) => (nodes[`N${k}`] = add(a, scale(axes.x, c))));
+    const members: Member3D[] = [];
+    const pieceLoads: MemberLoad3D[] = [];
+    const nodal: Record<string, number[]> = {};
+    for (let k = 0; k < 4; k++) {
+      members.push(
+        beam(`p${k}`, `N${k}`, `N${k + 1}`, {
+          beta,
+          releaseI: k === 0 ? releaseI : undefined,
+          releaseJ: k === 3 ? releaseJ : undefined,
+        }),
+      );
+    }
+    for (const load of loads) {
+      if (load.kind === 'distributed') {
+        const la = load.a ?? 0;
+        const lb = load.b ?? L;
+        const w2 = load.w2 ?? load.w1;
+        const at = (x: number) => load.w1 + ((w2 - load.w1) * (x - la)) / (lb - la);
+        for (let k = 0; k < 4; k++) {
+          const s = Math.max(la, cuts[k]);
+          const e = Math.min(lb, cuts[k + 1]);
+          if (e - s < 1e-12) continue;
+          pieceLoads.push({
+            kind: 'distributed',
+            member: `p${k}`,
+            direction: load.direction,
+            w1: at(s),
+            w2: at(e),
+            a: s - cuts[k],
+            b: e - cuts[k],
+          });
+        }
+      } else {
+        const k = cuts.findIndex((c) => Math.abs(c - load.a) < 1e-12);
+        expect(k).toBeGreaterThan(0);
+        const entry = nodal[`N${k}`] ?? [0, 0, 0, 0, 0, 0];
+        const e = unit(load.direction);
+        const offset = load.kind === 'point' ? 0 : 3;
+        const value = load.kind === 'point' ? load.P : load.M;
+        for (let c = 0; c < 3; c++) entry[offset + c] += value * e[c];
+        nodal[`N${k}`] = entry;
+      }
+    }
+    const split = solveModel(
+      { nodes, members, loads: pieceLoads, nodal, fixed: { N0: ALL, N4: ALL } },
+      3,
+    );
+
+    // Reactions.
+    let fMax = 0;
+    let mMax = 0;
+    for (const r of [...split.reactions.N0, ...split.reactions.N4].slice(0, 3)) {
+      fMax = Math.max(fMax, Math.abs(r));
+    }
+    for (const p of members) {
+      for (const s of split.members[p.id].stations) {
+        fMax = Math.max(fMax, Math.abs(s.N), Math.abs(s.Vy), Math.abs(s.Vz));
+        mMax = Math.max(mMax, Math.abs(s.T), Math.abs(s.My), Math.abs(s.Mz));
+      }
+    }
+    expect(fMax).toBeGreaterThan(1);
+    expect(mMax).toBeGreaterThan(1);
+    for (let d = 0; d < 6; d++) {
+      const magnitude = d < 3 ? fMax : mMax;
+      near(whole.reactions.A[d], split.reactions.N0[d], 1e-9, magnitude);
+      near(whole.reactions.B[d], split.reactions.N4[d], 1e-9, magnitude);
+    }
+
+    // End forces of the whole member = outer end forces of the first and last piece.
+    const res = whole.members.m;
+    for (let d = 0; d < 6; d++) {
+      const magnitude = d < 3 ? fMax : mMax;
+      near(res.endForces[d], split.members.p0.endForces[d], 1e-9, magnitude);
+      near(res.endForces[6 + d], split.members.p3.endForces[6 + d], 1e-9, magnitude);
+    }
+    for (const r of releasedDofs3D(releaseI, releaseJ)) expect(res.endForces[r]).toBe(0);
+
+    // Internal forces on both sides of every cut, from the end forces of the adjoining pieces.
+    for (let k = 1; k <= 3; k++) {
+      const pair = res.stations.filter((s) => Math.abs(s.x - cuts[k]) < 1e-12);
+      expect(pair.length).toBe(2);
+      const left = split.members[`p${k - 1}`].endForces.slice(6);
+      const right = split.members[`p${k}`].endForces.slice(0, 6);
+      const [before, after] = pair;
+      const checks: Array<[number, number, number]> = [
+        [before.N, left[0], fMax],
+        [before.Vy, -left[1], fMax],
+        [before.Vz, -left[2], fMax],
+        [before.T, left[3], mMax],
+        [before.My, -left[4], mMax],
+        [before.Mz, left[5], mMax],
+        [after.N, -right[0], fMax],
+        [after.Vy, right[1], fMax],
+        [after.Vz, right[2], fMax],
+        [after.T, -right[3], mMax],
+        [after.My, right[4], mMax],
+        [after.Mz, -right[5], mMax],
+      ];
+      for (const [actual, expected, magnitude] of checks) near(actual, expected, 1e-9, magnitude);
+    }
+
+    // Displacements along the whole member = joint displacements of the split model, at the
+    // cuts and at every other station (via the pieces' own stations).
+    let uMax = 0;
+    let tMax = 0;
+    for (let k = 1; k <= 3; k++) {
+      const u = split.u[`N${k}`];
+      uMax = Math.max(uMax, norm([u[0], u[1], u[2]]));
+      tMax = Math.max(tMax, Math.abs(dot(axes.x, [u[3], u[4], u[5]])));
+    }
+    expect(uMax).toBeGreaterThan(1e-6);
+    for (let k = 1; k <= 3; k++) {
+      const u = split.u[`N${k}`];
+      const d = toLocal(axes, u);
+      const twist = toLocal(axes, u.slice(3))[0];
+      for (const s of res.stations.filter((st) => Math.abs(st.x - cuts[k]) < 1e-12)) {
+        near(s.u, d[0], 1e-8, uMax);
+        near(s.v, d[1], 1e-8, uMax);
+        near(s.w, d[2], 1e-8, uMax);
+        near(s.twist, twist, 1e-8, tMax);
+      }
+    }
+    // Every regular station of the whole member coincides with a station of one of the pieces
+    // (20 divisions of the whole = 4 + 5 + 5 + 6 divisions of the pieces).
+    const divisions = [4, 5, 5, 6];
+    const full = lineResult(
+      whole.elements.m,
+      [...whole.u.A, ...whole.u.B],
+      divisions.reduce((sum, n) => sum + n, 0),
+    );
+    let compared = 0;
+    for (let k = 0; k < 4; k++) {
+      const piece = lineResult(
+        split.elements[`p${k}`],
+        [...split.u[`N${k}`], ...split.u[`N${k + 1}`]],
+        divisions[k],
+      );
+      for (const ps of piece.stations) {
+        const interior = ps.x > 1e-9 && ps.x < piece.length - 1e-9;
+        for (const s of full.stations.filter((st) => Math.abs(st.x - cuts[k] - ps.x) < 1e-9)) {
+          compared++;
+          near(s.u, ps.u, 1e-8, uMax);
+          near(s.v, ps.v, 1e-8, uMax);
+          near(s.w, ps.w, 1e-8, uMax);
+          near(s.twist, ps.twist, 1e-8, tMax);
+          if (!interior) continue; // the two limits at a cut were compared above
+          near(s.N, ps.N, 1e-9, fMax);
+          near(s.Vy, ps.Vy, 1e-9, fMax);
+          near(s.Vz, ps.Vz, 1e-9, fMax);
+          near(s.T, ps.T, 1e-9, mMax);
+          near(s.My, ps.My, 1e-9, mMax);
+          near(s.Mz, ps.Mz, 1e-9, mMax);
+        }
+      }
+    }
+    expect(compared).toBeGreaterThanOrEqual(21);
+    // The member's own end values at released ends agree as well (they differ from the joint's).
+    const first = res.stations[0];
+    const start = split.members.p0.stations[0];
+    const last = res.stations[res.stations.length - 1];
+    const finish = split.members.p3.stations[split.members.p3.stations.length - 1];
+    for (const key of ['u', 'v', 'w'] as const) {
+      near(first[key], start[key], 1e-8, uMax);
+      near(last[key], finish[key], 1e-8, uMax);
+    }
+    near(first.twist, start.twist, 1e-8, tMax);
+    near(last.twist, finish.twist, 1e-8, tMax);
+  });
+});
+
 // ---------------------------------------------------------------------------------------
 // 6. End releases
 // ---------------------------------------------------------------------------------------
@@ -1787,6 +2055,53 @@ describe('end releases', () => {
     for (const s of res.stations) expect(s.Mz).toBe(0);
   });
 
+  it('treats rounding residue in a vanished pivot as zero, for any length and section', () => {
+    // After the end moments are condensed the transverse stiffness of the plane is zero in
+    // theory but ±1e-16 of its original value in floating point. Dividing by such a pivot
+    // would turn the member's load into garbage instead of reporting the mechanism.
+    const random = rng(77);
+    const cases: Array<[EndRelease, EndRelease, MemberLoadDirection, number[]]> = [
+      [{ mz: true, fy: true }, { mz: true }, 'localY', [1, 5, 7, 11]],
+      [{ my: true }, { my: true, fz: true }, 'localZ', [2, 4, 8, 10]],
+    ];
+    for (let trial = 0; trial < 300; trial++) {
+      const len = 0.5 + 9 * random();
+      const props = {
+        E: E * (1 + random()),
+        Iy: Iy * (1 + random()),
+        Iz: Iz * (1 + random()),
+      };
+      for (const [releaseI, releaseJ, direction, dead] of cases) {
+        const member = beam('m', 'A', 'B', { ...props, releaseI, releaseJ });
+        const end: Vec3 = [len, 0, 0];
+        const el = lineElement(member, [0, 0, 0], end, [], ZERO);
+        const axial = (props.E * A) / len;
+        for (const r of dead) {
+          for (let c = 0; c < 12; c++) expect(Math.abs(el.kLocal[r][c])).toBeLessThan(1e-9 * axial);
+          expect(el.fLocal[r]).toBe(0);
+        }
+        near(el.kLocal[0][0], axial, 1e-12);
+        near(el.kLocal[3][3], (G * J) / len, 1e-12);
+        // The other bending plane is untouched.
+        const other = direction === 'localY' ? 2 : 1;
+        const EI = props.E * (direction === 'localY' ? props.Iy : props.Iz);
+        near(el.kLocal[other][other], (12 * EI) / len ** 3, 1e-12);
+        expectError(
+          () =>
+            lineElement(
+              member,
+              [0, 0, 0],
+              end,
+              [{ kind: 'distributed', member: 'm', direction, w1: 1 + random() }],
+              ZERO,
+            ),
+          'UNSTABLE',
+          /mechanism/,
+        );
+      }
+    }
+  });
+
   it('reports a loaded mechanism as UNSTABLE', () => {
     const torque: MemberLoad3D = { kind: 'moment', member: 'm', direction: 'localX', M: 1, a: 1 };
     const both = (key: keyof EndRelease) =>
@@ -1825,6 +2140,12 @@ describe('end releases', () => {
     );
     // The same releases without load in that mode are accepted.
     expect(() => lineElement(both('mx'), [0, 0, 0], xj, [udlY], ZERO)).not.toThrow();
+    // A small but genuine load in the free mode is still reported next to a much larger one.
+    expectError(
+      () => lineElement(both('mx'), [0, 0, 0], xj, [udlY, { ...torque, M: 1e-5 }], ZERO),
+      'UNSTABLE',
+      /mx/,
+    );
   });
 
   it('condenses a generic matrix like the 2D helper', () => {
@@ -2224,6 +2545,23 @@ describe('stations', () => {
     near(res.maxAbsMy.x, xz, 1e-12);
   });
 
+  it('adds one station where the shear vanishes in both planes at the same section', () => {
+    const res = simple(
+      [
+        { kind: 'distributed', member: 'm', direction: 'localY', w1: -2 },
+        { kind: 'distributed', member: 'm', direction: 'localZ', w1: 7 },
+      ],
+      3,
+    );
+    const xs = res.stations.map((s) => s.x);
+    expect(xs.length).toBe(5);
+    near(xs[2], L / 2, 1e-12);
+    near(res.maxAbsMz.value, (2 * L * L) / 8, 1e-12);
+    near(res.maxAbsMy.value, (-7 * L * L) / 8, 1e-12);
+    near(res.maxAbsMz.x, L / 2, 1e-12);
+    near(res.maxAbsMy.x, L / 2, 1e-12);
+  });
+
   it('adds no spurious stations for unloaded or uniformly sheared members', () => {
     const sol = solveModel(
       {
@@ -2252,6 +2590,39 @@ describe('stations', () => {
       lineResult(lineElement(member, [0, 0, 0], xj, [], ZERO), new Array(12).fill(0), NaN).stations
         .length,
     ).toBe(2);
+  });
+
+  it('ignores rounding-level shear in the other plane when looking for zero shear', () => {
+    // With beta = 90° the global-Y loads act along local −z, but cos 90° = 6e-17 leaves a
+    // component of that size along local y. Its "shear" changes sign at x = 4.584, which must
+    // not become a station; the real zero of Vz (shifted by the pure local-z load) must.
+    const rolled = beam('m', 'A', 'B', { beta: Math.PI / 2 });
+    const { res } = single(
+      rolled,
+      xj,
+      [
+        { kind: 'distributed', member: 'm', direction: 'globalY', w1: -5 },
+        { kind: 'point', member: 'm', direction: 'globalY', P: -20, a: 2 },
+        { kind: 'point', member: 'm', direction: 'localZ', P: 30, a: 7 },
+      ],
+      ALL,
+      ALL,
+      {},
+      3,
+    );
+    near(res.axes.z[1], -1, 1e-15);
+    // Local z loads: +5 per unit length, +20 at 2, +30 at 7 → R_i = 25 + 17.92 + 6.48 = 49.4,
+    // and Vz = −49.4 + 5x + 20 vanishes at x = 5.88.
+    near(res.endForces[2], -49.4, 1e-9);
+    const xs = res.stations.map((s) => s.x);
+    expect(xs.length).toBe(9);
+    const expected = [0, 2, 2, L / 3, 5.88, (2 * L) / 3, 7, 7, L];
+    xs.forEach((x, k) => near(x, expected[k], 1e-9, L));
+    for (const s of res.stations) {
+      expect(Math.abs(s.Vy)).toBeLessThan(1e-12);
+      expect(Math.abs(s.Mz)).toBeLessThan(1e-12);
+    }
+    near(stationAt(res, 5.88).Vz, 0, 1e-9, 49.4);
   });
 
   it('torque diagram of a fixed-fixed shaft with a point torque', () => {
@@ -2352,6 +2723,17 @@ describe('lineLoads helpers', () => {
     expect(loadResultant(loads)).toEqual([0, 7, 2, 4, -6, 24.5]);
     expect(lineBreakpoints(emptyLineLoads())).toEqual({ kinks: [], jumps: [] });
     expect(equivalentLineLoads(emptyLineLoads(), L, 'beam')).toEqual(new Array(12).fill(0));
+  });
+
+  it('gives a truss no torque about its own axis and a beam the lever-rule split', () => {
+    const loads = emptyLineLoads();
+    loads.moments.push({ a: 1, m: [8, 0, 0] });
+    expect(equivalentLineLoads(loads, 4, 'truss')).toEqual(new Array(12).fill(0));
+    const asBeam = equivalentLineLoads(loads, 4, 'beam');
+    expect(asBeam[3]).toBe(6);
+    expect(asBeam[9]).toBe(2);
+    expect(asBeam.filter((_, k) => k !== 3 && k !== 9).every((v) => v === 0)).toBe(true);
+    expect(loadResultant(loads)).toEqual([0, 0, 0, 8, 0, 0]);
   });
 
   it('internal forces follow the Station3D sign conventions', () => {
