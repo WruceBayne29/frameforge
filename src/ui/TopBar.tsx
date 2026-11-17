@@ -1,10 +1,8 @@
 import { useRef, useState } from 'react';
 import { EXAMPLES } from '../examples';
 import { parseProjectText, ProjectFormatError, serializeProject } from '../io/projectFile';
-import { detectProjectKind, parseProject3DText } from '../io/projectFile3d';
 import { shareUrl } from '../io/share';
 import { emptyProject } from '../model';
-import { from2D } from '../model3d/generate';
 import { useStore } from './store';
 import { notify } from './toast';
 import { useWorkspace, WorkspaceSwitch } from './workspace';
@@ -46,9 +44,11 @@ export function TopBar({ theme, onToggleTheme, onHelp }: TopBarProps) {
   const openFile = async (file: File) => {
     try {
       const text = await file.text();
-      if (detectProjectKind(text) === '3d') {
+      // The 3D file code is loaded on demand so it does not slow down the first page load.
+      const io3d = await import('../io/projectFile3d');
+      if (io3d.detectProjectKind(text) === '3d') {
         // A space-structure file belongs to the 3D workspace.
-        open3D(parseProject3DText(text));
+        open3D(io3d.parseProject3DText(text));
         return;
       }
       dispatch({ type: 'load', project: parseProjectText(text) });
@@ -180,7 +180,11 @@ export function TopBar({ theme, onToggleTheme, onHelp }: TopBarProps) {
           className="ghost"
           title="Convert this model to a 3D model and continue in the 3D workspace"
           disabled={project.nodes.length === 0}
-          onClick={() => open3D(from2D(project))}
+          onClick={() => {
+            import('../model3d/generate')
+              .then(({ from2D }) => open3D(from2D(project)))
+              .catch(() => notify('Could not convert the model to 3D.', 'error'));
+          }}
         >
           Open in 3D
         </button>

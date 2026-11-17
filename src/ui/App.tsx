@@ -202,11 +202,7 @@ export function App({ incoming }: { incoming?: Project }) {
   return (
     <StoreProvider initial={initial}>
       <div className="app">
-        <TopBar
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          onHelp={openHelp}
-        />
+        <TopBar theme={theme} onToggleTheme={toggleTheme} onHelp={openHelp} />
         <Shortcuts onHelp={openHelp} />
         <Persistence />
         <div className="main">

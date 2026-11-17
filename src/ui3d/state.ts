@@ -143,14 +143,35 @@ export const DEFAULT_TOOL_OPTIONS_3D: ToolOptions3D = {
 export function viewFor(project: Project3D, current: ViewOptions3D): ViewOptions3D {
   const { members, plates, solids } = project;
   const allTruss = members.length > 0 && members.every((m) => m.type === 'truss');
-  const elements = members.length + plates.length + solids.length;
+  const elements = elementCount(project);
   return {
     ...current,
     diagram: members.length === 0 ? 'none' : allTruss ? 'N' : 'Mz',
-    contour:
-      plates.length > 0 ? 'plateVonMisesTop' : solids.length > 0 ? 'solidVonMises' : 'none',
+    contour: plates.length > 0 ? 'plateVonMisesTop' : solids.length > 0 ? 'solidVonMises' : 'none',
     labels: elements <= 40 && project.nodes.length <= 40,
   };
+}
+
+const elementCount = (p: Project3D) => p.members.length + p.plates.length + p.solids.length;
+
+/**
+ * Adjusts the view when an edit changes what the model is made of: the first plates or
+ * solids switch a contour plot on, the first members a diagram, and id labels go off when the
+ * model grows past the size where they are readable.
+ */
+export function adaptView(before: Project3D, after: Project3D, view: ViewOptions3D): ViewOptions3D {
+  const defaults = viewFor(after, view);
+  let next = view;
+  const surfaces = (p: Project3D) => p.plates.length + p.solids.length;
+  if (surfaces(before) === 0 && surfaces(after) > 0 && view.contour === 'none') {
+    next = { ...next, contour: defaults.contour };
+  }
+  if (before.members.length === 0 && after.members.length > 0 && view.diagram === 'none') {
+    next = { ...next, diagram: defaults.diagram };
+  }
+  const big = (p: Project3D) => elementCount(p) > 40 || p.nodes.length > 40;
+  if (view.labels && !big(before) && big(after)) next = { ...next, labels: false };
+  return next;
 }
 
 export function initialState3D(project: Project3D): AppState3D {
@@ -372,6 +393,7 @@ export function reducer3D(state: AppState3D, action: Action3D): AppState3D {
       const nodes = new Set(action.project.nodes.map((n) => n.id));
       return {
         ...state,
+        view: adaptView(state.project, action.project, state.view),
         project: action.project,
         past: [...state.past, state.project].slice(-HISTORY_LIMIT),
         future: [],

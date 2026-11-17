@@ -6,6 +6,7 @@ import type {
   ProjectLoad3D,
   Restraints6,
 } from '../model3d';
+import type { AnalysisResult3D } from '../solver3d';
 import { fmt } from '../ui/format';
 
 export { fmt, mm } from '../ui/format';
@@ -182,4 +183,13 @@ export function slug(name: string): string {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'frameforge-3d'
   );
+}
+
+/** Out-of-balance force as a fraction of the applied load (the equilibrium check). */
+export function equilibriumError(
+  result: Pick<AnalysisResult3D, 'appliedLoad' | 'equilibrium'>,
+): number {
+  const applied = Math.max(Math.hypot(...result.appliedLoad), 1e-9);
+  const [fx, fy, fz] = result.equilibrium;
+  return Math.hypot(fx, fy, fz) / applied;
 }

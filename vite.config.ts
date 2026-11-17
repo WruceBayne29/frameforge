@@ -6,6 +6,8 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   base: './',
   plugins: [react()],
+  // three.js makes the lazily loaded 3D workspace chunk ~760 kB; the 2D first load is unaffected.
+  build: { chunkSizeWarningLimit: 800 },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],

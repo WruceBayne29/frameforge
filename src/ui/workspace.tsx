@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import type { Project } from '../model';
 import type { Project3D } from '../model3d/types';
 import type { Workspace } from '../workspace';
+import './workspace.css';
 
 export interface WorkspaceValue {
   workspace: Workspace;
