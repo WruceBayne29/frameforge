@@ -57,11 +57,32 @@ describe('3D project files', () => {
     });
     expect(p.nodes[0].z).toBe(0);
     expect(p.materials.map((m) => m.name)).toEqual(['Steel', 'Concrete M25']);
-    expect(p.design).toEqual({
-      grade: 'E250',
-      laterallyRestrained: false,
-      effectiveLengthFactor: 1,
+    expect(p.design).toEqual({ grade: 'E250', laterallyRestrained: false, kz: 1, ky: 1 });
+  });
+
+  it('reads per-axis effective length factors, falling back to the single older factor', () => {
+    const base = {
+      kind: 'space',
+      nodes: [
+        { id: 'a', x: 0, y: 0, z: 0 },
+        { id: 'b', x: 1, y: 0, z: 0 },
+      ],
+      members: [{ id: 'm', i: 'a', j: 'b', type: 'beam', section: 'ISMB 300', kz: 0.7 }],
+    };
+    expect(parseProject3D({ ...base, design: { effectiveLengthFactor: 2 } }).design).toMatchObject({
+      kz: 2,
+      ky: 2,
     });
+    expect(parseProject3D({ ...base, design: { kz: 0.8, ky: 0.5 } }).design).toMatchObject({
+      kz: 0.8,
+      ky: 0.5,
+    });
+    const p = parseProject3D(base);
+    expect(p.members[0].kz).toBe(0.7);
+    expect(p.members[0].ky).toBeUndefined();
+    expect(() => parseProject3D({ ...base, members: [{ ...base.members[0], ky: 0 }] })).toThrow(
+      /positive effective length factor ky/,
+    );
   });
 
   it('keeps optional fields, cleans releases and gives loads unique ids', () => {
@@ -164,11 +185,7 @@ describe('3D project files', () => {
     expect(p.loads[1]).toMatchObject({ w2: 2, a: 0.1, b: 0.9, direction: 'localZ' });
     expect(p.loads[5]).toMatchObject({ kind: 'platePoint', xi: 0, eta: 0 });
     expect(p.loads[6]).toMatchObject({ kind: 'face', face: 2, direction: 'normal', p: 9 });
-    expect(p.design).toEqual({
-      grade: 'E350',
-      laterallyRestrained: true,
-      effectiveLengthFactor: 1,
-    });
+    expect(p.design).toEqual({ grade: 'E350', laterallyRestrained: true, kz: 1, ky: 1 });
     // parsing is idempotent
     expect(parseProject3D(JSON.parse(serializeProject3D(p)))).toEqual(p);
   });

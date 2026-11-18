@@ -119,3 +119,16 @@ members".
     New 3D models keep 77 kN/m³.
 38. **Node dragging only in plane frame mode.** In 3D a screen drag has no unique plane to move
     on; in plane mode it moves over z = 0 with the snap grid, one undo step per drag.
+39. **The 3D design check extends `checkMember` instead of adding a second function.** New
+    inputs are optional and every minor-axis term is exactly zero without them, so a plane
+    frame gets bit-identical 2D results and there is one implementation to maintain.
+40. **Minor-axis plastic modulus from the idealised section** (parallel flanges of the mean
+    thickness, fillets ignored), because the ISMB / ISMC table has no Zpy. For I-sections the
+    1.2·Zey·fy/γm0 limit of cl. 8.2.1.2 governs anyway (Zpy/Zey ≈ 1.5–2).
+41. **Simplified linear interaction (cl. 9.3.1.1 "alternatively") for the section check**,
+    N/Nd + My/Mdy + Mz/Mdz ≤ 1, as in the 2D app. Conservative; avoids Mnd and the α exponents.
+42. **One project K per axis plus member overrides; the lateral-torsional buckling length uses
+    K about y-y** (the compression flange buckles sideways). `from2D` copies the single 2D K to
+    both axes, so converted examples keep their 2D design results.
+43. **Design demands are the largest values along each member** (|N|, |Mz|, |My|, |Vy|, |Vz|),
+    not the concurrent values at one section — conservative, and how the 2D app worked.

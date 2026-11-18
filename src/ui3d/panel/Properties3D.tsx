@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { isPlane, memberProps3D, nodesOffPlane, setPlaneMode } from '../../model3d';
+import {
+  isPlane,
+  memberProps3D,
+  nodesOffPlane,
+  setPlaneMode,
+  utilisationColor,
+} from '../../model3d';
 import { notify } from '../../ui/toast';
 import type { EndRelease, Project3D, Restraints6 } from '../../model3d';
 import {
@@ -166,7 +172,7 @@ function NodeProperties({ ids }: { ids: string[] }) {
 }
 
 function MemberProperties({ ids }: { ids: string[] }) {
-  const { state, dispatch } = useStore3D();
+  const { state, dispatch, solution } = useStore3D();
   const project = state.project;
   const members = project.members.filter((m) => ids.includes(m.id));
   const edit = (next: Project3D) => dispatch({ type: 'edit', project: next });
@@ -237,6 +243,47 @@ function MemberProperties({ ids }: { ids: string[] }) {
           cm⁴
         </p>
       )}
+      <h4>Design (IS 800)</h4>
+      {one && solution.design[one.id] && (
+        <p className="muted">
+          Utilisation{' '}
+          <span
+            className="badge"
+            style={{ background: utilisationColor(solution.design[one.id].result.utilisation) }}
+          >
+            {solution.design[one.id].result.utilisation.toFixed(2)}
+          </span>{' '}
+          — breakdown in the Design tab.
+        </p>
+      )}
+      {(['kz', 'ky'] as const).map((axis) => {
+        const own = common(members, (m) => m[axis]);
+        return (
+          <Row
+            key={axis}
+            label={axis === 'kz' ? 'K about z-z' : 'K about y-y'}
+            hint="Effective length factor for this member; empty uses the project value"
+          >
+            <NumberField
+              value={own}
+              min={0.01}
+              placeholder={`project ${project.design[axis]}`}
+              label={`Effective length factor ${axis}`}
+              onCommit={(k) => edit(updateMembers(project, ids, { [axis]: k }))}
+            />
+            {members.some((m) => m[axis] !== undefined) && (
+              <button
+                type="button"
+                className="ghost"
+                title="Use the project value"
+                onClick={() => edit(updateMembers(project, ids, { [axis]: undefined }))}
+              >
+                Reset
+              </button>
+            )}
+          </Row>
+        );
+      })}
       {type !== 'truss' && (
         <>
           <h4>End releases</h4>

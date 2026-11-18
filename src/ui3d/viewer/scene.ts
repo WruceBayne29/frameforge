@@ -15,6 +15,9 @@ import {
   modelSize3D,
   nodalField,
   resultScales3D,
+  utilisationColor,
+  type MemberDesign3D,
+  type ProjectMember3D,
   type DiagramKind3D,
   type Project3D,
 } from '../../model3d';
@@ -62,6 +65,8 @@ import type { Palette } from './palette';
 export interface SceneInput {
   project: Project3D;
   result: AnalysisResult3D | null;
+  /** IS 800 results, used to colour members by utilisation. */
+  design: Record<string, MemberDesign3D> | null;
   view: ViewOptions3D;
   selection: Selection3D | null;
   pending: string[];
@@ -257,7 +262,16 @@ export class ViewerEngine {
     );
     this.layer(
       'model',
-      [project, result, view.deformed, view.deformScale, view.contour, palette],
+      [
+        project,
+        result,
+        view.deformed,
+        view.deformScale,
+        view.contour,
+        view.utilisation,
+        input.design,
+        palette,
+      ],
       () => this.buildModel(),
     );
     this.layer('supports', [project, view.supports, palette], () => this.buildSupports());
@@ -635,7 +649,7 @@ export class ViewerEngine {
     project: Project3D,
     pos: Positions,
     radius: (type: 'beam' | 'truss') => number,
-    colour: (type: 'beam' | 'truss') => string,
+    colour: (member: ProjectMember3D) => string,
     opacity = 1,
     pick = true,
   ): THREE.InstancedMesh | null {
@@ -661,7 +675,7 @@ export class ViewerEngine {
         tmpScale.set(r, Math.max(length, 1e-9), r),
       );
       mesh.setMatrixAt(k, tmpMatrix);
-      mesh.setColorAt(k, c.set(colour(m.type)));
+      mesh.setColorAt(k, c.set(colour(m)));
     });
     mesh.computeBoundingSphere();
     if (pick)
@@ -795,12 +809,19 @@ export class ViewerEngine {
         palette.node,
       ),
     );
+    const design = view.utilisation ? input.design : null;
     out.push(
       this.tubes(
         project,
         base,
-        (t) => (t === 'truss' ? sizes.truss : sizes.beam),
-        (t) => (t === 'truss' ? palette.truss : palette.beam),
+        (t) => (t === 'truss' ? sizes.truss : sizes.beam) * (design ? 1.6 : 1),
+        (m) => {
+          if (design) {
+            const d = design[m.id];
+            return d ? utilisationColor(d.result.utilisation) : palette.muted;
+          }
+          return m.type === 'truss' ? palette.truss : palette.beam;
+        },
       ),
     );
 

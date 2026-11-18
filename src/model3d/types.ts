@@ -16,8 +16,6 @@ import type {
   MemberType3D,
   SolidFace,
 } from '../solver3d/types';
-import type { DesignSettings } from '../model/types';
-import { DEFAULT_DESIGN } from '../model/types';
 
 export type { EndRelease, GlobalDirection, MemberLoadDirection, MemberType3D, SolidFace };
 
@@ -63,6 +61,28 @@ export interface CustomSection3D {
   J: number;
 }
 
+/** Steel design settings for the IS 800 check (one grade and set of factors per project). */
+export interface DesignSettings3D {
+  /** Steel grade name from the IS 2062 table, e.g. "E250". */
+  grade: string;
+  /** Compression flange laterally restrained (no lateral-torsional buckling). */
+  laterallyRestrained: boolean;
+  /** Effective length factor for buckling about the major axis (local z, z-z). */
+  kz: number;
+  /**
+   * Effective length factor for buckling about the minor axis (local y, y-y); also used for
+   * the lateral-torsional buckling length.
+   */
+  ky: number;
+}
+
+export const DEFAULT_DESIGN_3D: DesignSettings3D = {
+  grade: 'E250',
+  laterallyRestrained: false,
+  kz: 1,
+  ky: 1,
+};
+
 export interface ProjectMember3D {
   id: string;
   i: string;
@@ -76,6 +96,9 @@ export interface ProjectMember3D {
   beta?: number;
   releaseI?: EndRelease;
   releaseJ?: EndRelease;
+  /** Effective length factors for this member, overriding the project's `design.kz` / `ky`. */
+  kz?: number;
+  ky?: number;
 }
 
 export interface ProjectPlate3D {
@@ -201,7 +224,7 @@ export interface Project3D {
   customSections: CustomSection3D[];
   /** Include the self-weight of every element (gravity along −Y). */
   selfWeight: boolean;
-  design: DesignSettings;
+  design: DesignSettings3D;
   /** Plane frame mode: the structure lies in the z = 0 plane and only moves in it. */
   plane?: ProjectPlane;
 }
@@ -229,6 +252,6 @@ export function emptyProject3D(name = 'Untitled'): Project3D {
     materials: [{ ...STEEL }, { ...CONCRETE }],
     customSections: [],
     selfWeight: false,
-    design: { ...DEFAULT_DESIGN },
+    design: { ...DEFAULT_DESIGN_3D },
   };
 }

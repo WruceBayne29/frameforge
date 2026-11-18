@@ -331,3 +331,18 @@ table.data.compact th {
   padding: 4px 2px;
   min-width: 0;
 }
+
+/* The panel body scrolls as a whole; its children must not shrink to fit it. */
+.panel-body > * {
+  flex-shrink: 0;
+}
+
+.design-breakdown {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.design-breakdown h4 {
+  margin: 0 0 4px;
+}

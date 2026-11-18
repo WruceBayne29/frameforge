@@ -164,6 +164,7 @@ function Shortcuts3D({ onHelp }: { onHelp: () => void }) {
       else if (DIAGRAM_KEYS[key]) dispatch({ type: 'view', view: { diagram: DIAGRAM_KEYS[key] } });
       else if (key === 'd') dispatch({ type: 'view', view: { deformed: !view.deformed } });
       else if (key === 'r') dispatch({ type: 'view', view: { reactions: !view.reactions } });
+      else if (key === 'u') dispatch({ type: 'view', view: { utilisation: !view.utilisation } });
       else if (key === 'f') dispatch({ type: 'camera', preset: 'fit' });
       else if (key === 'g')
         dispatch({ type: 'toolOptions', options: { snap: !state.toolOptions.snap } });

@@ -5,7 +5,7 @@ import type { AnalysisResult3D } from '../solver3d';
 import { DIAGRAMS_3D, fieldInfo, fieldTitle, fmt, legendTicks } from './format3d';
 import { clickAction, toolHint } from './interaction';
 import { useStore3D } from './store';
-import type { Pick3D } from './store';
+import type { Pick3D, Solution3D } from './store';
 import type { Vec3 } from './viewer/build';
 import { readPalette } from './viewer/palette';
 import { ViewerEngine } from './viewer/scene';
@@ -88,6 +88,11 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
     if (!solution.pending) lastResult.current = solution.result;
   }, [solution]);
   const result = solution.pending ? lastResult.current : solution.result;
+  const lastDesign = useRef<Solution3D['design'] | null>(null);
+  useEffect(() => {
+    if (!solution.pending) lastDesign.current = solution.design;
+  }, [solution]);
+  const design = solution.pending ? lastDesign.current : solution.design;
 
   useEffect(() => {
     const observer = new MutationObserver(() => setPalette(readPalette()));
@@ -144,6 +149,7 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
     engine.current?.update({
       project: state.project,
       result,
+      design,
       view: state.view,
       selection: state.selection,
       pending: state.pending,
@@ -155,6 +161,7 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
   }, [
     state.project,
     result,
+    design,
     state.view,
     state.selection,
     state.pending,

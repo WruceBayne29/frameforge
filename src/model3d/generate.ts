@@ -495,7 +495,12 @@ export function from2D(source: Project): Project3D {
     { ...STEEL, E: source.E, density: STEEL_MASS_2D * GRAVITY },
     { ...CONCRETE },
   ];
-  project.design = { ...source.design };
+  project.design = {
+    grade: source.design.grade,
+    laterallyRestrained: source.design.laterallyRestrained,
+    kz: source.design.effectiveLengthFactor,
+    ky: source.design.effectiveLengthFactor,
+  };
   project.customSections = source.customSections.map((s) => ({
     name: s.name,
     A: s.A,

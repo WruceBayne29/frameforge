@@ -4,7 +4,6 @@
  * plain language, like `projectFile.ts` does for 2D projects. Both kinds of file carry the
  * same `format` tag; 3D files are told apart by `kind: "space"` (see `detectProjectKind`).
  */
-import { DEFAULT_DESIGN } from '../model/types';
 import type {
   CustomSection3D,
   EndRelease,
@@ -22,7 +21,7 @@ import type {
   Restraints6,
   SolidFace,
 } from '../model3d/types';
-import { CONCRETE, STEEL } from '../model3d/types';
+import { CONCRETE, DEFAULT_DESIGN_3D, STEEL } from '../model3d/types';
 import { FILE_FORMAT, ProjectFormatError } from './projectFile';
 
 export { FILE_FORMAT, ProjectFormatError };
@@ -197,6 +196,13 @@ export function parseProject3D(data: unknown): Project3D {
     const releaseJ = release(raw.releaseJ, `${what} end release`);
     if (releaseI) member.releaseI = releaseI;
     if (releaseJ) member.releaseJ = releaseJ;
+    for (const axis of ['kz', 'ky'] as const) {
+      const factor = optNum(raw[axis], `${what} effective length factor ${axis}`);
+      if (factor !== undefined) {
+        if (!(factor > 0)) fail(`${what} needs a positive effective length factor ${axis}.`);
+        member[axis] = factor;
+      }
+    }
     return member;
   });
   const memberIds = new Set(members.map((m) => m.id));
@@ -378,7 +384,10 @@ export function parseProject3D(data: unknown): Project3D {
   );
 
   const design = isObject(data.design) ? data.design : {};
+  // Older files have one factor for both axes.
   const k = optNum(design.effectiveLengthFactor, 'Effective length factor') ?? 1;
+  const kz = optNum(design.kz, 'Effective length factor kz') ?? k;
+  const ky = optNum(design.ky, 'Effective length factor ky') ?? k;
 
   const project: Project3D = {
     version: 1,
@@ -397,9 +406,10 @@ export function parseProject3D(data: unknown): Project3D {
     customSections,
     selfWeight: data.selfWeight === true,
     design: {
-      grade: typeof design.grade === 'string' ? design.grade : DEFAULT_DESIGN.grade,
+      grade: typeof design.grade === 'string' ? design.grade : DEFAULT_DESIGN_3D.grade,
       laterallyRestrained: design.laterallyRestrained === true,
-      effectiveLengthFactor: k > 0 ? k : 1,
+      kz: kz > 0 ? kz : 1,
+      ky: ky > 0 ? ky : 1,
     },
   };
   if (typeof data.description === 'string' && data.description) {

@@ -19,7 +19,17 @@ pass:
   axially-rigid portal cases get a conditioning-scaled tolerance, see DECISIONS 36);
   `tests/validation/engine.ts` lets each 2D validation case run on the 2D solver or on the
   plane-frame path (`plane2d.ts`), and the validation test runs both.
-- [ ] Phase 2 — IS 800 design check in 3D (biaxial, both buckling axes, both shears).
+- [x] **Phase 2 — IS 800 design check in 3D.** `checkMember` takes optional `momentY`,
+  `shearZ`, `torsion`, `cmy`: minor-axis bending (cl. 8.2.1.2, Zpy from the idealised geometry
+  — `plasticModulusMinor`), shear across the flanges (Av = 2·bf·tf) with the high-shear
+  reduction, biaxial section check (cl. 9.3.1.1 simplified), both member-buckling equations of
+  cl. 9.3.2.2, tension + biaxial bending; torsion is reported, not checked. With no minor-axis
+  action the result is identical to the 2D check (tested with `toEqual`). `model3d/design.ts`
+  (`designMembers3D`: Mz → major, My → minor; project `design.kz` / `ky` plus member `kz` / `ky`
+  overrides, kLT = ky; custom sections skipped). UI: Design tab (settings, summary, per-member
+  breakdown), utilisation colours (chip + U key), K overrides in member Properties.
+  `tests/validation/design.test.ts`: plane-mode design of every 2D example matches the 2D app
+  (same members, class, checks, governing check; ratios to 1e-9).
 - [ ] Phase 3 — modal analysis in 3D (consistent mass, subspace iteration on the skyline).
 - [ ] Phase 4 — influence lines in 3D (one factorisation, many right-hand sides).
 - [ ] Phase 5 — PDF report for Project3D.

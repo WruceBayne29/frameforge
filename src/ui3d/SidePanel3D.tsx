@@ -1,16 +1,18 @@
 import { useState } from 'react';
+import { Design3D } from './panel/Design3D';
 import { Generate3D } from './panel/Generate3D';
 import { Properties3D } from './panel/Properties3D';
 import { Results3D } from './panel/Results3D';
 import { Tables3D } from './panel/Tables3D';
 
-type Tab = 'properties' | 'tables' | 'generate' | 'results';
+type Tab = 'properties' | 'tables' | 'generate' | 'results' | 'design';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'properties', label: 'Properties' },
   { id: 'tables', label: 'Tables' },
   { id: 'generate', label: 'Generate' },
   { id: 'results', label: 'Results' },
+  { id: 'design', label: 'Design' },
 ];
 
 export function SidePanel3D() {
@@ -50,6 +52,7 @@ export function SidePanel3D() {
           {tab === 'tables' && <Tables3D />}
           {tab === 'generate' && <Generate3D />}
           {tab === 'results' && <Results3D />}
+          {tab === 'design' && <Design3D />}
         </div>
       )}
     </aside>

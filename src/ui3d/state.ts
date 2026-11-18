@@ -11,6 +11,7 @@ import {
   DEFAULT_PLATE_THICKNESS,
   DEFAULT_SECTION_3D,
   analyzeProject3D,
+  designMembers3D,
   FIXED_SUPPORT,
   isPlane,
   PINNED_SUPPORT,
@@ -21,6 +22,7 @@ import {
 import type {
   DiagramKind3D,
   FieldKind,
+  MemberDesign3D,
   GlobalDirection,
   MemberType3D,
   NewLoad3D,
@@ -75,6 +77,8 @@ export interface ViewOptions3D {
   /** Multipliers applied on top of the automatic scales. */
   deformScale: number;
   diagramScale: number;
+  /** Colour members by their IS 800 utilisation ratio. */
+  utilisation: boolean;
 }
 
 export interface ToolOptions3D {
@@ -142,6 +146,7 @@ export const DEFAULT_VIEW_3D: ViewOptions3D = {
   grid: true,
   deformScale: 1,
   diagramScale: 1,
+  utilisation: false,
 };
 
 export const DEFAULT_TOOL_OPTIONS_3D: ToolOptions3D = {
@@ -546,6 +551,8 @@ export interface Solution3D {
   /** The project this solution belongs to. */
   project: Project3D;
   result: AnalysisResult3D | null;
+  /** IS 800 checks of the rolled-steel members (empty without a result). */
+  design: Record<string, MemberDesign3D>;
   error: SolveError3D | null;
   /** True while a large model waits to be re-analysed. */
   pending: boolean;
@@ -557,28 +564,27 @@ export function estimatedEquations(project: Project3D): number {
   return project.nodes.length * (shells ? 6 : 3);
 }
 
-/** Runs the analysis; never throws. */
+/** Runs the analysis and the design checks; never throws. */
 export function solveProject3D(project: Project3D): Solution3D {
   const empty = project.members.length + project.plates.length + project.solids.length === 0;
-  if (project.nodes.length === 0 || empty) {
-    return { project, result: null, error: null, pending: false };
-  }
+  const none = { project, result: null, design: {}, pending: false };
+  if (project.nodes.length === 0 || empty) return { ...none, error: null };
   try {
-    return { project, result: analyzeProject3D(project), error: null, pending: false };
-  } catch (e) {
-    if (e instanceof SolverError) {
-      return {
-        project,
-        result: null,
-        error: { message: e.message, nodeId: e.nodeId, elementId: e.memberId },
-        pending: false,
-      };
-    }
+    const result = analyzeProject3D(project);
     return {
       project,
-      result: null,
-      error: { message: e instanceof Error ? e.message : 'Unexpected error during analysis.' },
+      result,
+      design: designMembers3D(project, result),
+      error: null,
       pending: false,
+    };
+  } catch (e) {
+    if (e instanceof SolverError) {
+      return { ...none, error: { message: e.message, nodeId: e.nodeId, elementId: e.memberId } };
+    }
+    return {
+      ...none,
+      error: { message: e instanceof Error ? e.message : 'Unexpected error during analysis.' },
     };
   }
 }

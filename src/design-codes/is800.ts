@@ -1,13 +1,18 @@
 /**
  * IS 800:2007 (limit state method) member check for rolled ISMB / ISMC sections under
- * axial force, major-axis bending and shear.
+ * axial force, biaxial bending and shear in both principal directions (space-frame members).
+ * A plane-frame member is the special case with no minor-axis moment or shear, and then gives
+ * exactly the checks of the original 2D check.
  *
  * Units: forces in kN, moments in kN·m, lengths in m at the API boundary; everything is
  * converted to N / mm / MPa internally.
  *
  * Scope and assumptions (each is repeated next to the code it affects):
  *  - Net area An = gross area Ag in tension (no bolt holes are modelled).
- *  - Bending about the major (z-z) axis only; no minor-axis moment.
+ *  - Biaxial bending: major (z-z) and minor (y-y) axis. Lateral-torsional buckling affects the
+ *    major axis only. Combined checks use the simplified linear section check of
+ *    cl. 9.3.1.1 and the two member-buckling equations of cl. 9.3.2.2.
+ *  - Torsion is not checked (IS 800 has no member check for it); a warning reports it.
  *  - The web is classified with the Table 2 limits for bending (neutral axis at mid-depth)
  *    for I-sections and with the 42ε limit for channels.
  *  - Lateral-torsional buckling uses the simplified doubly-symmetric expression of
@@ -47,10 +52,16 @@ export interface DesignInput {
   length: number;
   /** Axial force, kN — tension positive, compression negative (governing value) */
   axial: number;
-  /** Maximum |major-axis moment| along the member, kN·m */
+  /** Maximum |major-axis (z-z) moment| along the member, kN·m */
   moment: number;
-  /** Maximum |shear|, kN */
+  /** Maximum |shear| along the web (major-axis bending shear), kN */
   shear: number;
+  /** Maximum |minor-axis (y-y) moment| along the member, kN·m (default 0) */
+  momentY?: number;
+  /** Maximum |shear| across the flanges (minor-axis bending shear), kN (default 0) */
+  shearZ?: number;
+  /** Maximum |torque|, kN·m — not checked, only reported in a warning (default 0) */
+  torsion?: number;
   /** Effective length factor, major-axis (z-z) buckling (default 1.0) */
   kz?: number;
   /** Effective length factor, minor-axis (y-y) buckling (default 1.0) */
@@ -61,6 +72,8 @@ export interface DesignInput {
   kLT?: number;
   /** Equivalent uniform moment factor Cmz = CmLT (default 0.9) */
   cm?: number;
+  /** Equivalent uniform moment factor Cmy for minor-axis bending (default 0.9) */
+  cmy?: number;
 }
 
 export type SectionClass = 'plastic' | 'compact' | 'semi-compact' | 'slender';
@@ -100,8 +113,12 @@ export interface DesignResult {
      * of cl. 9.2.2 when V > 0.6 Vd.
      */
     Mdz: number;
-    /** Shear (cl. 8.4) */
+    /** Shear along the web, major-axis bending (cl. 8.4) */
     Vd: number;
+    /** Minor-axis bending capacity (cl. 8.2.1.2, no LTB), with the high-shear reduction */
+    Mdy: number;
+    /** Shear across the flanges, minor-axis bending (cl. 8.4, Av = 2·bf·tf) */
+    Vdz: number;
   };
   checks: CheckLine[];
   /** Maximum ratio over all checks (0 when nothing is loaded) */
@@ -125,6 +142,32 @@ const MAX_SLENDERNESS_COMPRESSION = 180;
 const MAX_SLENDERNESS_TENSION = 400;
 
 const CLASS_ORDER: readonly SectionClass[] = ['plastic', 'compact', 'semi-compact', 'slender'];
+
+/**
+ * Plastic section modulus about the minor (y-y) axis, cm³, from the idealised geometry
+ * (parallel flanges of the mean thickness, fillets ignored). The section table has no Zpy.
+ *  - I-section: two flange rectangles bf × tf plus the clear web (D − 2tf) × tw, all
+ *    symmetric about y-y: Zpy = tf·bf²/2 + (D − 2tf)·tw²/4.
+ *  - Channel: the plastic neutral axis splits the area in half, measured from the back of the
+ *    web; the web strip (full depth D, width tw) and the two flange strips (2tf deep) are
+ *    integrated exactly.
+ */
+export function plasticModulusMinor(section: SteelSection): number {
+  const { D, bf, tf, tw } = section;
+  if (section.family !== 'ISMC') return ((tf * bf * bf) / 2 + ((D - 2 * tf) * tw * tw) / 4) / 1e3;
+  // Width of the section at distance x from the back of the web.
+  const webArea = D * tw;
+  const flangeWidth = 2 * tf;
+  const half = (webArea + flangeWidth * (bf - tw)) / 2;
+  const xp = half <= webArea ? half / D : tw + (half - webArea) / flangeWidth;
+  // ∫|x − xp|·w dx over a strip from a to b; (x − xp)·|x − xp|/2 is an antiderivative.
+  const strip = (w: number, a: number, b: number) => {
+    const m = (x: number) => ((x - xp) * Math.abs(x - xp)) / 2;
+    return w * (m(b) - m(a));
+  };
+  const zp = strip(D, 0, tw) + strip(flangeWidth, tw, bf);
+  return zp / 1e3;
+}
 
 /** Class for a width/thickness ratio given the plastic / compact / semi-compact limits. */
 function classFromLimits(
@@ -231,6 +274,7 @@ export function checkMember(input: DesignInput): DesignResult {
   // Cl. 9.3.2.2 / Table 18 bounds the equivalent uniform moment factor below by 0.4, which
   // also keeps (CmLT − 0.25) safely positive. Values above 1 are not meaningful.
   const cm = Math.min(Math.max(input.cm ?? 0.9, 0.4), 1);
+  const cmy = Math.min(Math.max(input.cmy ?? 0.9, 0.4), 1);
 
   requireFinite('grade.fy', grade.fy, 0, true);
   requireFinite('grade.fu', grade.fu, 0, true);
@@ -242,6 +286,9 @@ export function checkMember(input: DesignInput): DesignResult {
   requireFinite('axial', input.axial, -Infinity);
   requireFinite('moment', input.moment, -Infinity);
   requireFinite('shear', input.shear, -Infinity);
+  requireFinite('momentY', input.momentY ?? 0, -Infinity);
+  requireFinite('shearZ', input.shearZ ?? 0, -Infinity);
+  requireFinite('torsion', input.torsion ?? 0, -Infinity);
 
   const { fy, fu } = grade;
   const warnings: string[] = [];
@@ -260,6 +307,9 @@ export function checkMember(input: DesignInput): DesignResult {
   const P = input.axial < -LOAD_EPS ? -input.axial : 0; // kN, compression
   const M = Math.abs(input.moment) > LOAD_EPS ? Math.abs(input.moment) : 0; // kN·m
   const V = Math.abs(input.shear) > LOAD_EPS ? Math.abs(input.shear) : 0; // kN
+  const My = Math.abs(input.momentY ?? 0) > LOAD_EPS ? Math.abs(input.momentY ?? 0) : 0; // kN·m
+  const Vz = Math.abs(input.shearZ ?? 0) > LOAD_EPS ? Math.abs(input.shearZ ?? 0) : 0; // kN
+  const Tq = Math.abs(input.torsion ?? 0) > LOAD_EPS ? Math.abs(input.torsion ?? 0) : 0; // kN·m
 
   // --- Classification (Table 2) -----------------------------------------------------------
   const epsilon = Math.sqrt(250 / fy);
@@ -311,6 +361,23 @@ export function checkMember(input: DesignInput): DesignResult {
   }
   const Mdz = MdSection / 1e6; // kN·m
 
+  // --- Minor-axis shear and bending (cl. 8.4, 8.2.1.2, 9.2.2) -----------------------------
+  // Shear across the flanges: Av = 2·bf·tf for rolled I-sections and channels (cl. 8.4.1.1).
+  const AvZ = 2 * section.bf * section.tf; // mm²
+  const Vdz = (AvZ * fy) / (Math.sqrt(3) * GAMMA_M0) / 1e3; // kN
+  const ZeY = section.Zey * 1e3; // mm³
+  const ZpY = plasticModulusMinor(section) * 1e3; // mm³
+  const betaBy = plasticOrCompact ? 1 : ZeY / ZpY;
+  const MdyCap = (1.2 * ZeY * fy) / GAMMA_M0; // N·mm
+  let MdyN = Math.min((betaBy * ZpY * fy) / GAMMA_M0, MdyCap); // N·mm
+  if (Vz > 0.6 * Vdz && plasticOrCompact) {
+    // High shear in the flanges: the capacity falls towards that of the web alone.
+    const beta = Math.min((2 * (Vz / Vdz) - 1) ** 2, 1);
+    const Mfd = (((section.D - 2 * section.tf) * section.tw ** 2) / 4) * (fy / GAMMA_M0); // N·mm
+    MdyN = Math.min(MdyN - beta * Math.max(MdyN - Mfd, 0), MdyCap);
+  }
+  const Mdy = MdyN / 1e6; // kN·m (no lateral-torsional buckling about the minor axis)
+
   // --- Bending, laterally unsupported (cl. 8.2.2) -----------------------------------------
   let lambdaLT = 0;
   let Md = Mdz;
@@ -358,6 +425,10 @@ export function checkMember(input: DesignInput): DesignResult {
     checks.push(makeLine('shear', 'Shear', '8.4', V, Vd, 'kN'));
   }
 
+  if (Vz > 0) {
+    checks.push(makeLine('shear-z', 'Shear across the flanges (minor axis)', '8.4', Vz, Vdz, 'kN'));
+  }
+
   if (M > 0) {
     checks.push(
       laterallyRestrained
@@ -373,33 +444,59 @@ export function checkMember(input: DesignInput): DesignResult {
     }
   }
 
-  if (M > 0 && (T > 0 || P > 0)) {
-    // Section strength, cl. 9.3.1.1 (conservative linear form): N/Nd + Mz/Mdz ≤ 1.
-    const axialRatio = T > 0 ? T / Td : P / Nd;
+  if (My > 0) {
+    checks.push(makeLine('bending-y', 'Bending about the minor axis', '8.2.1.2', My, Mdy, 'kN·m'));
+  }
+
+  if (M > 0 && My > 0 && T === 0 && P === 0) {
+    // Biaxial bending without axial force, cl. 9.3.1.1 (simplified form with N = 0).
     checks.push(
       makeLine(
-        'interaction-section',
-        'Combined axial force + bending (section strength)',
+        'biaxial',
+        'Biaxial bending (section strength)',
         '9.3.1.1',
-        axialRatio + M / Mdz,
+        My / Mdy + M / Mdz,
         1,
         '-',
       ),
     );
   }
 
-  if (M > 0 && P > 0) {
-    // Overall member strength, cl. 9.3.2.2 (bending about z-z only).
+  // Minor-axis terms below are exactly zero for a plane-frame member (My = 0), so the
+  // original 2D ratios are reproduced bit for bit.
+  const minor = My > 0 ? My / Mdy : 0;
+
+  if ((M > 0 || My > 0) && (T > 0 || P > 0)) {
+    // Section strength, cl. 9.3.1.1, simplified linear form: N/Nd + My/Mdy + Mz/Mdz ≤ 1.
+    const axialRatio = T > 0 ? T / Td : P / Nd;
+    checks.push(
+      makeLine(
+        'interaction-section',
+        'Combined axial force + bending (section strength)',
+        '9.3.1.1',
+        axialRatio + minor + M / Mdz,
+        1,
+        '-',
+      ),
+    );
+  }
+
+  if ((M > 0 || My > 0) && P > 0) {
+    // Overall member strength, cl. 9.3.2.2:
+    //   P/Pdy + Ky·Cmy·My/Mdy + KLT·Mz/MdLT ≤ 1
+    //   P/Pdz + 0.6·Ky·Cmy·My/Mdy + Kz·Cmz·Mz/MdLT ≤ 1
     const nz = P / Pdz;
     const ny = P / Pdy;
     const Kz = Math.min(1 + (lambdaZ - 0.2) * nz, 1 + 0.8 * nz);
+    const Ky = Math.min(1 + (lambdaY - 0.2) * ny, 1 + 0.8 * ny);
     const KLT = Math.max(1 - (0.1 * lambdaLT * ny) / (cm - 0.25), 1 - (0.1 * ny) / (cm - 0.25));
+    const minorY = My > 0 ? (Ky * cmy * My) / Mdy : 0;
     checks.push(
       makeLine(
         'buckling-y',
         'Combined compression + bending (minor-axis and lateral-torsional buckling)',
         '9.3.2.2',
-        ny + (KLT * M) / Md,
+        ny + minorY + (KLT * M) / Md,
         1,
         '-',
       ),
@@ -407,14 +504,14 @@ export function checkMember(input: DesignInput): DesignResult {
         'buckling-z',
         'Combined compression + bending (major-axis buckling)',
         '9.3.2.2',
-        nz + (Kz * cm * M) / Md,
+        nz + 0.6 * minorY + (Kz * cm * M) / Md,
         1,
         '-',
       ),
     );
   }
 
-  if (M > 0 && T > 0) {
+  if ((M > 0 || My > 0) && T > 0) {
     // Overall member strength, cl. 9.3.2.1. The code permits a reduced effective moment
     // Meff = M − ψ·T·Zec/A; the linear sum with the LTB-reduced Md is the conservative form.
     checks.push(
@@ -422,10 +519,17 @@ export function checkMember(input: DesignInput): DesignResult {
         'tension-bending',
         'Combined tension + bending (member strength)',
         '9.3.2.1',
-        T / Td + M / Md,
+        T / Td + minor + M / Md,
         1,
         '-',
       ),
+    );
+  }
+
+  if (Tq > 0) {
+    warnings.push(
+      `Torsion (|T| up to ${Tq.toPrecision(3)} kN·m) is not checked: IS 800 gives no member ` +
+        'check for it, and open I- and channel sections are weak in torsion.',
     );
   }
 
@@ -443,7 +547,7 @@ export function checkMember(input: DesignInput): DesignResult {
     epsilon,
     slendernessZ,
     slendernessY,
-    capacities: { Td, Pdz, Pdy, Pd, Md, Mdz, Vd },
+    capacities: { Td, Pdz, Pdy, Pd, Md, Mdz, Vd, Mdy, Vdz },
     checks,
     utilisation,
     governing,

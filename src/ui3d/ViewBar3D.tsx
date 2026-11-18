@@ -75,6 +75,19 @@ export function ViewBar3D({ onImage }: { onImage: () => void }) {
             ))}
         </select>
       )}
+      {members.length > 0 && (
+        <label
+          className={`chip${v.utilisation ? ' on' : ''}`}
+          title="Colour members by their IS 800 utilisation ratio (U)"
+        >
+          <input
+            type="checkbox"
+            checked={v.utilisation}
+            onChange={(e) => set({ utilisation: e.target.checked })}
+          />
+          Utilisation
+        </label>
+      )}
       {TOGGLES.map((t) => (
         <label key={t.key} className={`chip${v[t.key] ? ' on' : ''}`} title={t.title}>
           <input

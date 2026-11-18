@@ -17,6 +17,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ['C', 'Next contour plot'],
   ['D', 'Toggle deformed shape'],
   ['R', 'Toggle reactions'],
+  ['U', 'Toggle IS 800 utilisation colours'],
   ['F', 'Fit model to window'],
   ['G', 'Toggle snap to grid'],
   ['Drag', 'Orbit'],

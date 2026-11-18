@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STEEL_GRADES, checkMember, classifySection } from './is800';
+import { STEEL_GRADES, checkMember, classifySection, plasticModulusMinor } from './is800';
 import type { DesignInput, DesignResult, SteelGrade } from './is800';
 import { SECTIONS, getSection } from './sections';
 import type { SteelSection } from './sections';
@@ -690,5 +690,132 @@ describe('options and input validation', () => {
     const snapshot = JSON.stringify(input);
     checkMember(input);
     expect(JSON.stringify(input)).toBe(snapshot);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Space-frame members: minor-axis bending, shear across the flanges, biaxial interaction
+// ---------------------------------------------------------------------------------------
+
+describe('minor-axis plastic modulus (idealised geometry)', () => {
+  it('ISMB 300: Zpy = tf·bf²/2 + (D − 2tf)·tw²/4 = 125.39 cm³', () => {
+    // 12.4·140²/2 = 121 520 mm³; (300 − 24.8)·7.5²/4 = 3 870 mm³; sum 125 390 mm³.
+    expectRel(plasticModulusMinor(ISMB300), 125.39, 1e-4);
+  });
+
+  it('every ISMB has Zpy / Zey between 1.4 and 2.2 (shape factor of an I about its weak axis)', () => {
+    for (const s of SECTIONS.filter((x) => x.family === 'ISMB')) {
+      const ratio = plasticModulusMinor(s) / s.Zey;
+      expect(ratio, s.designation).toBeGreaterThan(1.4);
+      expect(ratio, s.designation).toBeLessThan(2.2);
+    }
+  });
+
+  it('channels: matches a numerical integration over thin strips', () => {
+    for (const s of [ISMC200, ISMC125, section('ISMC 400'), section('ISMC 75')]) {
+      // Independent check: split the section into 20 000 strips parallel to the web, find the
+      // plastic neutral axis by bisection on the area and sum |x − xp|·dA.
+      const n = 20000;
+      const dx = s.bf / n;
+      const width = (x: number) => (x < s.tw ? s.D : 2 * s.tf);
+      const xs = Array.from({ length: n }, (_, k) => (k + 0.5) * dx);
+      const total = xs.reduce((a, x) => a + width(x) * dx, 0);
+      let lo = 0;
+      let hi = s.bf;
+      for (let k = 0; k < 60; k++) {
+        const mid = (lo + hi) / 2;
+        const left = xs.reduce((a, x) => a + (x < mid ? width(x) * dx : 0), 0);
+        if (left < total / 2) lo = mid;
+        else hi = mid;
+      }
+      const xp = (lo + hi) / 2;
+      const zp = xs.reduce((a, x) => a + Math.abs(x - xp) * width(x) * dx, 0) / 1e3;
+      expectRel(plasticModulusMinor(s), zp, 2e-3);
+    }
+  });
+});
+
+describe('minor-axis bending and shear, cl. 8.2.1.2 / 8.4 / 9.2.2', () => {
+  it('ISMB 300 / E250: Mdy = 1.2·Zey·fy/γm0 = 17.673 kN·m (the 1.2·Ze cap governs)', () => {
+    // Zpy·fy/γm0 = 125 390·250/1.1 = 28.50 kN·m > 1.2·64 800·250/1.1 = 17.673 kN·m.
+    const r = run({ momentY: 10 });
+    expectRel(r.capacities.Mdy, 17.6727);
+    expectRel(line(r, 'bending-y').ratio, 10 / 17.6727);
+    expect(ids(r)).toEqual(['bending-y']);
+  });
+
+  it('ISMB 300 / E250: Vdz = 2·bf·tf·fy/(√3·γm0) = 455.58 kN', () => {
+    // 2·140·12.4 = 3 472 mm²; 3 472·250/(1.7321·1.1) = 455 581 N.
+    const r = run({ shearZ: -100 });
+    expectRel(r.capacities.Vdz, 455.58);
+    expectRel(line(r, 'shear-z').ratio, 100 / 455.58);
+  });
+
+  it('high shear across the flanges reduces Mdy towards the web-only capacity', () => {
+    // Vz = 0.8·Vdz: β = (1.6 − 1)² = 0.36; Mfd = 275.2·7.5²/4·250/1.1 = 0.8795 kN·m;
+    // Mdy = 17.673 − 0.36·(17.673 − 0.8795) = 11.627 kN·m.
+    const r = run({ shearZ: 0.8 * 455.581, momentY: 1 });
+    expectRel(r.capacities.Mdy, 11.6272);
+    expectRel(run({ shearZ: 0.6 * 455.5, momentY: 1 }).capacities.Mdy, 17.6727);
+  });
+
+  it('biaxial bending without axial force: My/Mdy + Mz/Mdz', () => {
+    // Laterally restrained ISMB 300: Mdz = 651 740·250/1.1 = 148.12 kN·m.
+    const r = run({ moment: 60, momentY: 6, laterallyRestrained: true });
+    expectRel(line(r, 'biaxial').ratio, 6 / 17.6727 + 60 / 148.1227);
+    expect(ids(r)).toEqual(['bending', 'bending-y', 'biaxial']);
+  });
+
+  it('reports torsion as not checked', () => {
+    const r = run({ torsion: 2.5 });
+    expect(r.checks).toEqual([]);
+    expect(r.warnings.join(' ')).toMatch(/Torsion .* not checked/);
+    expect(run({ torsion: 1e-9 }).warnings).toEqual([]);
+  });
+
+  it('rejects non-finite minor-axis actions', () => {
+    expect(() => run({ momentY: Number.NaN })).toThrow(RangeError);
+    expect(() => run({ shearZ: Infinity })).toThrow(RangeError);
+    expect(() => run({ torsion: Number.NaN })).toThrow(RangeError);
+  });
+});
+
+describe('biaxial bending with axial force, cl. 9.3.1.1 and 9.3.2.2', () => {
+  // ISMB 300 / E250, L = 3 m, K = 1, laterally restrained, P = 200 kN, Mz = 40, My = 5 kN·m.
+  //   λz = (3000/123.7)·√(250/(π²·2e5)) = 0.27293, curve a → Pdz = 1257.85 kN
+  //   λy = (3000/28.4)·√(250/(π²·2e5)) = 1.18880, curve b → Pdy = 619.170 kN
+  //   Nd = 5626·250/1.1 = 1278.64 kN; Mdz = 148.123; Mdy = 17.6727 kN·m
+  //   ny = 0.32301, nz = 0.15900; Ky = min(1 + 0.9888·ny, 1 + 0.8·ny) = 1.25841 (cap);
+  //   Kz = 1 + 0.07293·nz = 1.01160; KLT = 1 (λLT = 0)
+  const compressed = () => run({ axial: -200, moment: 40, momentY: 5, laterallyRestrained: true });
+
+  it('section check: P/Nd + My/Mdy + Mz/Mdz = 0.70938', () => {
+    expectRel(line(compressed(), 'interaction-section').ratio, 0.709385);
+  });
+
+  it('member check about y: P/Pdy + Ky·Cmy·My/Mdy + KLT·Mz/Mdz = 0.91349', () => {
+    expectRel(line(compressed(), 'buckling-y').ratio, 0.913488);
+  });
+
+  it('member check about z: P/Pdz + 0.6·Ky·Cmy·My/Mdy + Kz·Cmz·Mz/Mdz = 0.59712', () => {
+    expectRel(line(compressed(), 'buckling-z').ratio, 0.597119);
+  });
+
+  it('tension + biaxial bending: T/Td + My/Mdy + Mz/Mdz = 0.67028', () => {
+    const r = run({ axial: 150, moment: 40, momentY: 5, laterallyRestrained: true });
+    expectRel(line(r, 'tension-bending').ratio, 0.670281);
+  });
+
+  it('Cmy scales only the minor-axis term', () => {
+    const base = line(compressed(), 'buckling-y').ratio;
+    const r = run({ axial: -200, moment: 40, momentY: 5, laterallyRestrained: true, cmy: 0.6 });
+    // Ky·My/Mdy = 1.25841·5/17.6727 = 0.35603; the term drops from ×0.9 to ×0.6.
+    expectRel(base - line(r, 'buckling-y').ratio, 0.3 * 0.356034, 1e-4);
+  });
+
+  it('a member with no minor-axis action gives exactly the plane-frame result', () => {
+    const plane = run({ axial: -200, moment: 40, shear: 30 });
+    const space = run({ axial: -200, moment: 40, shear: 30, momentY: 0, shearZ: 0, torsion: 0 });
+    expect(space).toEqual(plane);
   });
 });

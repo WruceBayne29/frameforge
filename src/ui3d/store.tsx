@@ -42,7 +42,7 @@ export function StoreProvider3D({
       direct ??
       (delayed && delayed.project === project
         ? delayed
-        : { project, result: null, error: null, pending: true }),
+        : { project, result: null, design: {}, error: null, pending: true }),
     [direct, delayed, project],
   );
   const value = useMemo(() => ({ state, dispatch, solution }), [state, solution]);
