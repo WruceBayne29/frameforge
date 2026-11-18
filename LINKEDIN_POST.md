@@ -6,14 +6,14 @@
 > working from your specification. I'd keep that line. Recruiters and seniors who open the commit
 > history will see it anyway, and being upfront about how you used the tool reads far better than
 > being asked about it later. Before posting, spend an hour with `docs/THEORY.md` and
-> `src/solver/` so you can answer questions about how it works — and, for the 3D part,
+> `src/solver3d/` so you can answer questions about how it works — and, for the 3D part,
 > `docs/THEORY_3D.md`. Add the hero GIF (`docs/screenshots/hero.gif`) as the post's media, or a
-> 3D screenshot (`docs/screenshots/3d-building-frame.png`). The 3D workspace lives on the
-> `feat/3d-space-structures` branch: merge and deploy it before you post the 3D paragraphs, or
-> cut them.
+> 3D screenshot (`docs/screenshots/3d-building-frame.png`). The one-app version (3D with a
+> plane-frame mode) is on the `feat/3d-only` branch: merge and deploy it before you post, or the
+> live demo will not match the text.
 >
-> There are two versions below: the original launch post with a 3D paragraph added, and a short
-> follow-up post if the original has already gone out.
+> There are two versions below: the launch post, and a short follow-up post if the original
+> has already gone out.
 
 ---
 
@@ -23,21 +23,19 @@ In my first semester of Civil Engineering at BITS Pilani, I kept running into th
 STAAD and SAP2000 are what the industry uses, but they are expensive, heavy, and a lot of software
 to open just to check what a hinge does to a bending moment diagram.
 
-So I built FrameForge: a free structural analysis tool that runs entirely in the browser — 2D
-frames and trusses, and now 3D structures too.
+So I built FrameForge: a free structural analysis tool that runs entirely in the browser — 3D
+frames, trusses, slabs and solids, with a plane-frame mode for 2D problems.
 
 🔗 Try it: https://wrucebayne29.github.io/frameforge/
 💻 Code: https://github.com/WruceBayne29/frameforge
 
 What it does:
 
-▪️ Analyses trusses, beams and frames with the direct stiffness method
-▪️ Draws axial force, shear force and bending moment diagrams, and the deflected shape
-▪️ Lets you drag a joint and watch the diagrams change live
-▪️ Checks steel members to IS 800:2007 and colours each one by its utilisation ratio
-▪️ Exports a PDF calculation report, and shares a whole model as a link
+▪️ Analyses space frames, space trusses, slabs (plate elements) and solid blocks, with force diagrams and stress contours
+▪️ Has a plane-frame mode for 2D beams, frames and trusses, where you can drag a joint and watch the diagrams change live
+▪️ Checks steel members to IS 800:2007 — including biaxial bending — and colours each one by its utilisation ratio
 ▪️ Goes beyond statics: natural frequencies with animated mode shapes, and influence lines for moving loads
-▪️ Has a 3D workspace for space frames, space trusses, slabs (plate elements) and solid blocks, with force diagrams and stress contours
+▪️ Exports a PDF calculation report, and shares a whole model as a link
 
 The part I care about most is that the answers are right. The solver has no FEM library under it.
 It is checked against 26 textbook problems with closed-form answers (cantilevers, propped
@@ -45,9 +43,11 @@ cantilevers, continuous beams, portal frames, Pratt and Warren trusses, beam nat
 every one matching to within 0.1%. It also tells you when a structure is unstable and which node
 is free to move, instead of returning nonsense.
 
-The 3D solver is held to the same standard: 20 more problems with 103 checked quantities, from a
+The 3D solver is held to the same standard: 27 more problems with 125 checked quantities, from a
 space tripod and a bent cantilever in bending and torsion to the classic plate and shell
-benchmarks (Navier's simply supported plate, the clamped plate, the Scordelis–Lo roof). Beams and
+benchmarks (Navier's simply supported plate, the clamped plate, the Scordelis–Lo roof) and
+vibration and influence-line closed forms. The 2D problems now run through the same 3D solver
+in plane-frame mode, and match the original 2D solver to eight significant figures. Beams and
 trusses match theory to within 0.1%; the plate and solid meshes land within 0.5% of the reference
 solutions. While checking the clamped plate I found that the centre moment printed in the
 standard plate-theory tables is nearly 1% high — a nice lesson in checking your references too.
@@ -85,7 +85,7 @@ and on members. It now can, still entirely in the browser:
 ▪️ Solids — footings and blocks — as 8-node brick elements
 ▪️ Force diagrams in both bending planes plus torsion, reactions, and an equilibrium check
 
-Every element is written from scratch and checked against 20 reference problems, from hand
+Every element is written from scratch and checked against 27 reference problems, from hand
 calculations to published finite-element benchmarks such as the Scordelis–Lo roof. The
 validation tables and the theory write-up are in the repo.
 

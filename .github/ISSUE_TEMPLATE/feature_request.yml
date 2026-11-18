@@ -23,10 +23,12 @@ body:
       label: Area
       options:
         - Solver (analysis)
+        - Plane-frame (2D) mode
+        - Modal analysis or influence lines
         - Design checks
         - Editor and user interface
         - Results and diagrams
-        - Import, export and sharing
+        - Import, export, PDF report and sharing
         - Examples
         - Documentation
         - Other

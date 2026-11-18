@@ -1,8 +1,11 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Theory manual
+  - name: Theory manual (3D solver)
+    url: https://github.com/WruceBayne29/frameforge/blob/main/docs/THEORY_3D.md
+    about: Elements, sign conventions, mass matrices, eigen solver, influence lines and limitations.
+  - name: Theory manual (plane frames and IS 800)
     url: https://github.com/WruceBayne29/frameforge/blob/main/docs/THEORY.md
-    about: Sign conventions, derivations and the assumptions behind the solver.
+    about: The direct stiffness method from first principles and the steel design checks.
   - name: Live demo
     url: https://wrucebayne29.github.io/frameforge/
     about: Try the latest version of FrameForge in your browser.

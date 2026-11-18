@@ -1,6 +1,7 @@
 # FrameForge 3D theory manual
 
-This document describes what the 3D solver in `src/solver3d` actually does: the degrees of
+This document describes what the solver in `src/solver3d` — the one the app runs, for 3D models
+and for plane frames — actually does: the degrees of
 freedom and sign conventions, the four element formulations, the loads, the assembly, and the
 sparse direct solver. It assumes the 2D manual ([THEORY.md](THEORY.md)), which derives the
 direct stiffness method, Hermite shape functions, consistent nodal loads and static condensation
@@ -9,12 +10,15 @@ from first principles; those derivations are not repeated here.
 The solver is unit-agnostic (any consistent units) and has no dependencies. Every element module
 returns a stiffness matrix and an equivalent nodal load vector in global axes (`contract.ts`);
 the assembler (`analyze.ts`) knows nothing about the formulations. The results are checked
-against 20 reference problems in [VALIDATION_3D.md](../VALIDATION_3D.md) and by the unit tests
+against 27 reference problems in [VALIDATION_3D.md](../VALIDATION_3D.md), and through plane-frame
+mode against the 26 problems of [VALIDATION.md](../VALIDATION.md) and by the unit tests
 next to each module.
 
 Sections: 1 axes and degrees of freedom, 2 truss and beam elements, 3 plate (flat shell)
 element, 4 solid (hexahedron) element, 5 assembly and supports, 6 sparse solver and mechanisms,
-7 limitations, 8 references.
+7 plane-frame mode, 8 consistent mass matrices, 9 natural frequencies (subspace iteration),
+10 influence lines, 11 limitations, 12 references. The IS 800 checks of space-frame members
+(biaxial bending) are in [THEORY.md §12.7](THEORY.md#127-space-frame-members-biaxial-bending).
 
 ## 1. Axes and degrees of freedom
 
@@ -458,7 +462,115 @@ each such DOF is the residual $r_j = (\sum k_g u_e - f_g)_j - F_j$:
 This keeps the common modelling shortcuts working while never returning a solution that violates
 equilibrium.
 
-## 7. Limitations
+## 7. Plane-frame mode (`model3d/convert.ts`)
+
+A project with `plane: 'XY'` lies in the $z = 0$ plane. Its solver model gets
+`restrainAll = {u_z, θ_x, θ_y}`: those three DOFs are held at every node, including the extra
+nodes that subdivision creates for modal analysis. What remains per node is
+$[u_x, u_y, \theta_z]$, the DOFs of a 2D frame. A member in the plane with roll angle 0 has
+local $z = \pm Z$, so its in-plane bending is about local $z$ with $EI_z$, and the 12 × 12 beam
+matrix reduces exactly to the 6 × 6 frame matrix of the 2D manual (the out-of-plane rows and
+columns are deleted with the restrained DOFs). The plane restraint is not a support: reactions
+are reported only at the project's supports; the equilibrium check includes it, and loads with
+out-of-plane components (which it would carry) trigger a warning.
+
+The 2D project of the former app converts with `from2D`: frame → beam (hinges → $M_z$ releases),
+truss → truss, 2D supports → $[u_x, u_y, \theta_z]$ restraints, member loads unchanged except
+that a load along local $y$ changes sign on a member whose axis points towards $-X$ — there the
+3D "web up" local $y$ is opposite to the 2D local $y$ (90° anticlockwise from the axis). The test
+suite checks that every 2D example and every 2D validation problem gives the same displacements,
+reactions and $N$, $V$, $M$ at every station as the original 2D solver, to $10^{-8}$ relative.
+
+## 8. Consistent mass matrices (`line.ts`, `plate.ts`, `solid.ts`)
+
+Mass comes from the mass density $\rho$ (weight density / $g$, $g = 9.80665$ m/s²) of each
+element plus lumped nodal masses (the same in X, Y and Z). With the element's own shape
+functions $N$ the consistent mass is $m = \int \rho\, N^T N\, dV$.
+
+**Beam** (local DOFs as in §2.2, $m = \rho A L$):
+
+- axial and torsion, linear shape functions:
+  $\frac{m}{6}\begin{bmatrix}2 & 1\\ 1 & 2\end{bmatrix}$ and
+  $\frac{\rho I_p L}{6}\begin{bmatrix}2 & 1\\ 1 & 2\end{bmatrix}$ with the polar moment
+  $I_p = I_y + I_z$ (torsional inertia);
+- bending in each plane, Hermite cubics:
+
+$$
+\frac{m}{420}\begin{bmatrix}
+156 & 22L & 54 & -13L\\
+22L & 4L^2 & 13L & -3L^2\\
+54 & 13L & 156 & -22L\\
+-13L & -3L^2 & -22L & 4L^2
+\end{bmatrix}
+$$
+
+  for $[v_i, \theta_{zi}, v_j, \theta_{zj}]$; in the $x$–$z$ plane the translation–rotation
+  terms change sign because $\theta_y = -dw/dx$. Rotary inertia of the section is neglected
+  (Euler–Bernoulli, as the stiffness).
+- End releases use the same transformation as static condensation (§2.4): released DOFs follow
+  $u_r = -k_{rr}^{-1} k_{rk} u_k$, so $m^* = \Gamma^T m\,\Gamma$ (Guyan reduction).
+
+**Truss:** $\frac{m}{6}\begin{bmatrix}2 & 1\\ 1 & 2\end{bmatrix}$ for each of the three
+translations (linear interpolation also across the bar).
+
+**Plate:** $\rho t \int N_i N_j\, dA$ for $u, v, w$ and the rotary inertia
+$\frac{\rho t^3}{12}\int N_i N_j\, dA$ for $\theta_x, \theta_y$ (Mindlin); no mass on the
+drilling rotation. 2 × 2 Gauss integration is exact ($N_iN_j\det J$ is at most cubic in $\xi$
+and $\eta$).
+
+**Solid:** $\rho \int N_i N_j\, dV$ for each translation, by 3 × 3 × 3 Gauss (exact for any
+trilinear geometry); the incompatible modes carry no mass.
+
+Every matrix reproduces the rigid-body mass exactly (tested), so the total mass is
+$\sum \rho V + \sum m_{\text{nodal}}$.
+
+## 9. Natural frequencies: subspace iteration (`eigen.ts`, `modal.ts`)
+
+The undamped free vibrations solve $K\varphi = \omega^2 M \varphi$. Beam members are first
+split into equal elements (6, 3, 2 or 1 per member depending on model size, as the 2D app did)
+so that the higher modes, whose shapes are not cubic, are accurate. $K$ is factorised once with
+the skyline $LDL^T$ (§6), including the treatment of unexcited mechanisms; $M$ is assembled on
+the same profile.
+
+The lowest $p$ eigenpairs are found by **subspace iteration** (Bathe) with
+$q = \max(2p, p + 8)$ vectors $X$:
+
+1. $\bar X = K^{-1} M X$ (one forward/back substitution per vector);
+2. $M$-orthonormalise $\bar X$ by modified Gram–Schmidt (twice); a vector that collapses into
+   the span of the others is replaced by a fresh one;
+3. Rayleigh–Ritz: solve the small problem $\bar X^T K \bar X\, Q = Q\Lambda$ by cyclic Jacobi
+   (with an unfactorised copy of $K$);
+4. $X = \bar X Q$; stop when the wanted eigenvalues change by less than $10^{-10}$ relative.
+
+Orthonormalising before the projection keeps the small problem well conditioned. The
+convergence rate of mode $p$ is $\lambda_p/\lambda_{q+1}$; many identical members give clusters
+of nearly equal local frequencies that stall it, so while the largest Ritz value is within
+50 % of $\lambda_p$ the subspace grows by 8 vectors every 8 iterations (up to 120).
+
+Massless DOFs (the drilling rotation of a plate, rotations of truss joints) have infinite
+eigenvalues and are never reached. A mode with a (near-)zero frequency means a mechanism the
+factorisation did not flag — for example a slab free to spin in its own plane against only its
+drilling stiffness — and is reported as an error. Each mode is scaled so its largest translation
+is 1 (a pure torsion mode: largest rotation × model size = 1); the effective modal mass along
+each axis is $\Gamma_d^2/\sum m$ with $\Gamma_d = \varphi^T M r_d$ for the rigid translation
+$r_d$ and $M$-normalised $\varphi$.
+
+## 10. Influence lines (`influence.ts`)
+
+An influence line is the value of one response (a reaction, a displacement, or $N$, $V_y$, $V_z$,
+$T$, $M_y$, $M_z$ at a section) as a unit load moves along a path of members. $K$ is factorised
+once; for each load position only the right-hand side changes — the equivalent nodal loads of the
+point load on the loaded member (§2.5) — so each ordinate costs one forward/back substitution.
+The response is then recovered for that load case: a displacement directly, a reaction from the
+element forces at the support DOF ($\sum k_e u_e - f_e$, with $f_e$ only for the loaded member),
+and a section force from the end forces of the target member and its own loads, if any. At a
+section that the load sits on, the value just before the section (the left limit) is used.
+
+By Müller-Breslau's principle the influence line of a force equals the deflected shape when the
+corresponding constraint is released and given a unit displacement; the tests check FrameForge's
+lines against those closed forms and, ordinate by ordinate, against full static analyses.
+
+## 11. Limitations
 
 - Linear elastic, small displacements; no P-Δ, buckling, cracking or yielding.
 - Beams are Euler–Bernoulli (no shear deformation) with uniform torsion (no warping); the
@@ -469,8 +581,10 @@ equilibrium.
 - Solid and plate stresses are element values; there is no stress smoothing or error estimate.
 - The UI computes the torsion constant of rolled sections as $\sum b t^3/3$, ignoring fillets.
 - One load case per analysis.
+- Modal analysis: consistent mass without rotary inertia of bending; no damping or
+  time-history response. Influence lines: point loads moving along members, not over plates.
 
-## 8. References
+## 12. References
 
 1. Bathe, K.-J. and Dvorkin, E. N. (1985). A four-node plate bending element based on
    Mindlin/Reissner plate theory and a mixed interpolation. *Int. J. Numer. Meth. Engng* 21,
@@ -488,7 +602,8 @@ equilibrium.
    Appl. Mech. Engrg* 72, 105–121.
 7. Cook, R. D., Malkus, D. S., Plesha, M. E. and Witt, R. J. (2002). *Concepts and Applications
    of Finite Element Analysis*, 4th ed. Wiley.
-8. Bathe, K.-J. (2014). *Finite Element Procedures*, 2nd ed.
+8. Bathe, K.-J. (2014). *Finite Element Procedures*, 2nd ed. (consistent mass, subspace
+   iteration).
 9. Przemieniecki, J. S. (1968). *Theory of Matrix Structural Analysis*. McGraw-Hill (space
    frame element).
 10. McGuire, W., Gallagher, R. H. and Ziemian, R. D. (2000). *Matrix Structural Analysis*, 2nd
@@ -499,3 +614,6 @@ equilibrium.
     element accuracy. *Finite Elements in Analysis and Design* 1, 3–20.
 13. Timoshenko, S. P. and Woinowsky-Krieger, S. (1959). *Theory of Plates and Shells*, 2nd ed.
     McGraw-Hill.
+14. Leissa, A. W. (1969). *Vibration of Plates*. NASA SP-160.
+15. Blevins, R. D. (1979). *Formulas for Natural Frequency and Mode Shape*. Van Nostrand
+    Reinhold.

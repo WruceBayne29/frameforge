@@ -76,12 +76,38 @@ pass:
   `encodeProject`, unused exports). VALIDATION.md now publishes the plane-frame 3D results.
   Also: constant axial force in plane trusses is drawn on the member (as in 2D); index.html
   and package.json descriptions; help text.
-- [ ] Phase 7 — e2e, screenshots, docs, PR (do not merge).
+- [x] **Phase 7 — verified, documented, PR opened (not merged).** `scripts/e2e3d.mjs` (`npm run
+  e2e`): 142 checks against `npm run build && npx vite preview`, all passing — start-up, all 18
+  examples, result views, contours, tools, plane mode (locked camera, N/Vy/Mz, in-plane tables,
+  node dragging with live results and one-step undo, 2D supports, New → Plane frame, toggle),
+  IS 800 tab and colours, modal animation, influence lines, PDF downloads, files, share links,
+  old 2D file / `#m=` link / autosave migration, themes, a 5,600-equation mesh, phone width, no
+  console errors. It found two bugs, both fixed (stale influence-line target after loading a
+  model; start-up toasts lost before the toast area mounted). `scripts/screenshots.mjs`
+  regenerates every README image and the hero GIF from the 3D app. Docs: README (one app),
+  THEORY.md (§12.7 biaxial IS 800) and THEORY_3D.md (§7 plane mode, §8 mass, §9 eigen solver,
+  §10 influence lines), DECISIONS 36–51, CONTRIBUTING, CV_BULLETS, LINKEDIN_POST, issue
+  templates, index.html, package.json.
+
+## If you resume
+
+- Everything above is committed and pushed on `feat/3d-only`; the PR into `main` is open and
+  must not be merged by an agent. `npm run check`, `npm run format:check`, `npm run coverage`
+  and `npm run e2e -- http://localhost:4179/` (after `npm run build && npx vite preview --port
+  4179`) all pass.
+- Ideas, in order: load combinations (IS 875), angle and hollow sections, settlements and
+  springs in the editor, P-Δ / linear buckling, solving in a Web Worker.
 
 Dev server for this branch: `.claude/worktrees/3d-only` is a git worktree of the main
 checkout; the preview config `frameforge-3d-only` (port 5199) runs it.
 
+**Status:** all seven phases are done. Tests: 1,363 (35 files), solver coverage 99.5 %
+statements; 26 plane-frame problems within 0.1 % on the 3D solver; 27 3D problems within their
+stated tolerances; 142 / 142 end-to-end checks.
+
 ## Earlier status
+
+_The record of the original build, kept for history; the 3D items it lists as missing are done above._
 
 **Status:** COMPLETE — all eight milestones, final deliverables, self-review and all three
 stretch features are done. The 2D app is deployed at https://wrucebayne29.github.io/frameforge/;
@@ -129,16 +155,6 @@ the 3D workspace is complete on the `feat/3d-space-structures` branch (not yet m
 - Test suite: 1056 tests (27 files), coverage 99.7 % of statements over both solvers and the
   design code.
 
-## Not done
-- 3D: load combinations, PDF report, IS 800 design check, modal analysis and influence lines;
-  a drawing tool for solids; settlements and springs in the 3D editor (the solver supports them);
-  solving in a Web Worker.
-
-## If you resume
-- Nothing is in progress. `npm run check`, `npm run e2e` and `npm run e2e3d` should pass.
-- Merge `feat/3d-space-structures` into `main` to deploy the 3D workspace.
-- Ideas, in order: load combinations (IS 875), angle sections for trusses, 3D design checks.
-
 ## Milestone checklist
 - [x] 1. Solver core + validation suite
 - [x] 2. MVP deploy
@@ -152,3 +168,4 @@ the 3D workspace is complete on the `feat/3d-space-structures` branch (not yet m
 - [x] Self-review on live site
 - [x] Stretch features: modal analysis, influence lines
 - [x] 3D space structures: truss, beam, plate and solid elements, workspace, validation
+- [x] One 3D app: plane-frame mode, 3D IS 800 / modal / influence lines / PDF, 2D workspace removed

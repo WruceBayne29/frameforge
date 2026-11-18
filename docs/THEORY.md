@@ -1,16 +1,21 @@
 # FrameForge theory manual
 
-This document derives everything the FrameForge solver does, from first principles, in the
-order the code does it. It is written for a student who has met statics and basic beam theory
-and wants to see how those ideas become a general computer method.
+This document derives the direct stiffness method from first principles on plane frames and
+trusses, in the order the code does it, together with the IS 800:2007 design checks. It is
+written for a student who has met statics and basic beam theory and wants to see how those
+ideas become a general computer method.
 
-The solver lives in `src/solver` and is written from scratch: no finite-element or linear-algebra
-library is used. Every formula below is implemented there and checked against textbook
+FrameForge now runs a single 3D solver (`src/solver3d`, described in
+[THEORY_3D.md](THEORY_3D.md)); a plane frame is a 3D model held in its plane, which reduces the
+3D beam exactly to the 2D frame element derived here (THEORY_3D §7). The original 2D solver this
+manual walks through is kept in `src/solver` as the reference the plane-frame mode is tested
+against, to $10^{-8}$. Every formula below is implemented there and checked against textbook
 problems in `tests/validation`.
 
 Sections: 1 overview, 2 sign conventions, 3 truss element, 4 frame element, 5 transformation,
 6 assembly, 7 boundary conditions, 8 member loads, 9 end releases, 10 solving, 11 diagrams and
-deflections, 12 IS 800:2007 design checks, 13 stretch features, 14 limitations, 15 references.
+deflections, 12 IS 800:2007 design checks (12.7: biaxial bending of space-frame members),
+13 influence lines and modal analysis, 14 limitations, 15 references.
 
 ## 1. Overview of the direct stiffness method
 
@@ -853,7 +858,43 @@ the check is $M_{eff} = M - \psi T Z_{ec} / A \le M_d$.
 The **utilisation ratio** shown for a member is the largest demand-to-capacity ratio over all
 the checks; a value above 1.0 means the member fails.
 
+### 12.7 Space-frame members: biaxial bending
+
+A member of a 3D model can carry a minor-axis moment $M_y$ and shear $V_z$ (across the flanges),
+and torsion. The section's major axis is the member's local $z$ ($I_z = I_{zz}$ of the rolled
+section), so $M_z$ and $V_y$ are the major-axis actions of the sections above.
+
+- **Minor-axis bending (cl. 8.2.1.2):**
+  $M_{dy} = \beta_b Z_{py} f_y/\gamma_{m0} \le 1.2 Z_{ey} f_y/\gamma_{m0}$; no lateral-torsional
+  buckling. The table has no $Z_{py}$, so it is computed from the idealised section (parallel
+  flanges, no fillets): $Z_{py} = t_f b_f^2/2 + (D - 2t_f)t_w^2/4$ for an I-section, and by
+  locating the plastic neutral axis for a channel. For I-sections the $1.2 Z_{ey}$ limit governs.
+- **Shear across the flanges (cl. 8.4):** $A_v = 2 b_f t_f$,
+  $V_{dz} = A_v f_y/(\sqrt3\,\gamma_{m0})$; when $V_z > 0.6 V_{dz}$ the minor-axis capacity falls
+  towards that of the web alone (cl. 9.2.2), as for the major axis.
+- **Section strength (cl. 9.3.1.1, simplified form):**
+  $\dfrac{N}{N_d} + \dfrac{M_y}{M_{dy}} + \dfrac{M_z}{M_{dz}} \le 1$.
+- **Member buckling (cl. 9.3.2.2):**
+  $$\frac{P}{P_{dy}} + \frac{K_y C_{my} M_y}{M_{dy}} + \frac{K_{LT} M_z}{M_{dz}} \le 1, \qquad
+  \frac{P}{P_{dz}} + 0.6\,\frac{K_y C_{my} M_y}{M_{dy}} + \frac{K_z C_{mz} M_z}{M_{dz}} \le 1$$
+  with $K_y = 1 + (\lambda_y - 0.2) n_y \le 1 + 0.8 n_y$ and $K_z$, $K_{LT}$ as in §12.6;
+  $C_{my} = C_{mz} = 0.9$.
+- **Tension + bending (cl. 9.3.2.1, conservative):**
+  $T/T_d + M_y/M_{dy} + M_z/M_{dz} \le 1$.
+- **Effective lengths:** one factor per axis for the project ($K_z$, $K_y$, the latter also used
+  for the lateral-torsional buckling length), with per-member overrides.
+- **Torsion is not checked** — IS 800 has no member check for it, and open sections are weak in
+  torsion; a warning reports it.
+
+With $M_y = V_z = 0$ every added term is exactly zero, so a plane-frame member gets bit for bit
+the checks of §12.1–12.6 (tested on all 2D examples).
+
 ## 13. Influence lines and modal analysis
+
+This section describes the original 2D implementation. The app now uses the 3D versions — one
+factorisation for all load positions, consistent 3D mass matrices and subspace iteration — in
+[THEORY_3D.md §8–10](THEORY_3D.md#8-consistent-mass-matrices-linets-platets-solidts); on plane
+frames they give the same results (tested to $10^{-8}$).
 
 ### 13.1 Influence lines
 
@@ -944,9 +985,10 @@ $$ \omega_n = (n\pi)^2 \sqrt{\frac{EI}{\rho A L^4}}, \qquad n = 1, 2, 3, \dots $
   underestimates deflection for deep, short members.
 - **Prismatic, straight members.** $E$, $A$ and $I$ are constant along each member. Tapered or
   curved members must be approximated by several short straight ones.
-- **2D only.** Loads and displacements lie in the $X$–$Y$ plane. There is no torsion, biaxial
-  bending or out-of-plane behaviour in the analysis. Lateral–torsional buckling enters only
-  through the design check, which needs an unbraced length for each member.
+- **Plane frames.** This manual covers loads and displacements in the $X$–$Y$ plane. Space
+  frames, torsion and biaxial bending are covered by the 3D solver
+  ([THEORY_3D.md](THEORY_3D.md)) and §12.7. Lateral–torsional buckling enters only through the
+  design check, which needs an unbraced length for each member.
 - **Idealised joints and supports.** Joints are perfectly rigid or perfectly pinned (plus
   linear springs at supports). Joint size, connection flexibility and member offsets are
   ignored.
