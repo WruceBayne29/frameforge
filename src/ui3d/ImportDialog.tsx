@@ -65,8 +65,9 @@ export function ImportDialog({
   const [tables, setTables] = useState<TableTexts>(EMPTY_TABLES);
   const [table, setTable] = useState<TableName>('nodes');
   const [source, setSource] = useState<ImportSource>(initial ?? { text: '', filename: '' });
-  const [length, setLength] = useState<LengthUnit | 'file'>('m');
-  const [force, setForce] = useState<ForceUnit | 'file'>('kN');
+  // Files may carry their own units ([settings] of a CSV bundle); tables do not.
+  const [length, setLength] = useState<LengthUnit | 'file'>(initial ? 'file' : 'm');
+  const [force, setForce] = useState<ForceUnit | 'file'>(initial ? 'file' : 'kN');
   const [plane, setPlane] = useState<PlaneChoice>('auto');
   const [loadCase, setLoadCase] = useState<number | undefined>(undefined);
   const [name, setName] = useState('');

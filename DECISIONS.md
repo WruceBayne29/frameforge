@@ -160,3 +160,75 @@ members".
 51. **Plane-frame trusses draw constant axial force on the members** (decision 18, ported):
     offset bands overlap unreadably in a 2D truss. In 3D the bands stay, because their plane
     (local x–y) is what shows which way a member is loaded in space.
+
+### Bring your own model (branch `feat/model-import`)
+
+52. **"API" means input routes into the static site, all ending in one validation.** CSV
+    tables, CSV bundles, STAAD files, `?model=`, `window.frameforge`, postMessage and the CLI
+    all build a `Project3D` and then run it through `parseProject3D` (via a serialise / parse
+    round trip), exactly like opening a saved file. There is no second, looser path.
+53. **The interchange JSON is the saved-file format, with a few shortcuts** instead of a new
+    format: `format` / `version` / `kind` optional; member `type` defaults to `beam`; supports
+    take `"fixed"` / `"pinned"` / `"roller"`, a mask such as `"111000"` or `{ ux: true, … }`;
+    loads take a single `node` / `member` / … id. Old files are unaffected (tested), and
+    `docs/model.schema.json` is checked against every built-in example and the shortcuts with
+    Ajv in the tests.
+54. **Untagged JSON is read as 3D unless it is obviously a 2D file.** Previously any file
+    without `kind: "space"` (and without plates / solids / materials) was assumed to be from the
+    former 2D app. Saved 2D files always carry `format: "frameforge-project"`, so now only tagged
+    files, or files whose members use the 2D-only `type: "frame"` or boolean releases, are
+    converted. One expectation in `io3d.test.ts` (`{}` → 2D) changed for that reason; the
+    tagged cases keep their old expectation.
+55. **CSV values follow one unit system; headers can override per column.** Plain columns use
+    the chosen length and force units consistently (mm and N ⇒ mm², mm⁴, N/mm² for E, N/mm³ for
+    density), because that is what other programs export. `A_cm2`, `x (mm)`, `E_GPa` and similar
+    override a column. Point and moment loads in the member-load table are forces and moments,
+    not force per length.
+56. **A header row is recognised only if it names a known column and holds no numbers.** This
+    stops a data row such as `M1,N1,N2,…` from being taken as a header because `n1` is an
+    alias of the start node. Tables without a header are read in the documented column order,
+    with a warning.
+57. **Member sections must resolve in CSV, but fall back in STAAD.** In tables an unknown
+    section is an error with its line number (the user can add it to the sections table). STAAD
+    files reference whole national tables (AISC, BS, …) that FrameForge does not have, so an
+    unknown `TABLE ST` section becomes ISMB 300 with a warning naming it, to be changed in the
+    editor, rather than blocking the import of an otherwise good model.
+58. **STAAD joint REPEAT numbering: new joints continue from the highest joint so far, in the
+    order of the repeated line.** Bentley's reference does not spell this out; it is the
+    numbering of their own multi-storey examples. A zero increment set repeats the previous
+    set, which is what Bentley's documented `REPEAT 10 0 12 0 15*0 0 10 0 9*0` example needs.
+    `;` ends a line, so REPEAT after `1 0 0 0; 2 5 0 0` repeats only joint 2 (use REPEAT ALL).
+59. **SET Z UP is a rotation (X, Y, Z) → (X, Z, −Y)**, applied to coordinates, restraints
+    (FY↔FZ, MY↔MZ), joint loads and global / projected member-load directions. Member local
+    axes then follow FrameForge's Y-up rule; for horizontal members that matches STAAD, for
+    vertical members STAAD's Z-up rule may differ in the sign of local y / z, so a warning is
+    shown when such a file uses BETA. Tested by importing the same frame written Y-up and Z-up.
+60. **STAAD materials: one FrameForge material per distinct (E, ν, density)**, named after the
+    STAAD material when E came from one (`MATERIAL STEEL`, `E STEEL`), otherwise `E 205 GPa`.
+    A numeric E makes the material the member's own; a numeric POISSON or DENSITY keeps the name.
+61. **STAAD self-weight:** `SELFWEIGHT Y -1` (Z with SET Z UP) maps to the self-weight switch;
+    any other factor, direction or member list becomes member line loads of
+    factor × density × area, so it is still exact for members.
+62. **STAAD `CON` / `CMOM` without a distance act at mid-span**, and a triangular `LIN` load
+    with a centre value is split into two linear pieces. Load offsets (d3) are ignored with a
+    warning. One primary load case is imported (the first by default); combinations are warned
+    about, not combined.
+63. **postMessage is restricted by sender and by what may be read.** Only the parent frame or
+    the opener is listened to, messages must have the documented shape (commands are an own-
+    property allowlist — a test caught `"toString"` getting through an `in` check), and
+    `analyze` / `getModel` are only answered after that page has loaded a model itself, so a
+    page that frames FrameForge cannot read a visitor's own model. `window.frameforge` has no
+    such limit: code in the page already has full access.
+64. **`?model=` accepts https URLs and same-site paths only, and is removed after loading**, so a
+    reload keeps the user's edits (the autosave) instead of re-importing. A blocked fetch says
+    that the server must allow CORS. A model with errors opens the Import dialog with the text.
+65. **The CLI is a tsx script, not a published `bin`.** The package is private and the solver
+    imports use bundler resolution; `npx tsx scripts/analyze.ts` (or `npm run --silent analyze`)
+    needs nothing beyond `npm install`. Exit codes separate usage (1), model errors (2) and
+    analysis failures (3).
+66. **Results JSON reports `Nmax` / `Nmin`, not "tension" / "compression".** The solver's
+    `maxAxial` is the algebraic maximum (negative for a member in compression throughout), so
+    the names say what the numbers are.
+67. **The viewer's label layer is its own stacking context.** CSS2DRenderer gives every label
+    a depth-based z-index, which drew labels over the Import (and Help) dialogs; `isolation:
+    isolate` on the layer keeps them below.

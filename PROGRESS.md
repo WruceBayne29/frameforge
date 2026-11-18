@@ -1,6 +1,45 @@
 # Progress
 
-## Current work: one 3D app (branch `feat/3d-only`)
+## Current work: bring your own model (branch `feat/model-import`)
+
+Goal: let users bring nodes and members in from the output of other software. FrameForge is a
+static site, so the "API" is a set of input routes that all end in the same validation as a
+saved file. Branched from `main` after PR #2 was merged.
+
+- [x] **Interchange format.** The saved-file format plus a few shortcuts (DECISIONS 53),
+  described by `docs/model.schema.json` (checked with Ajv against every example) and
+  `docs/IMPORT.md`. Untagged JSON is read as 3D (DECISIONS 54).
+- [x] **Tables / CSV** (`src/import/tables.ts`, `csv.ts`): nodes, members, supports, nodal and
+  member loads, sections, materials. Comma, tab, semicolon or whitespace separators, header
+  aliases, m / mm and kN / N, per-column unit suffixes, and errors by table and line. CSV
+  bundles (`[nodes]` … `[settings]`) in one file.
+- [x] **STAAD.Pro `.std`** (`src/import/staad.ts`): generation with REPEAT / REPEAT ALL,
+  groups, DEFINE MATERIAL, CONSTANTS, ISMB / ISMC tables, PRIS sections, releases, truss
+  members, supports, joint and member loads (UNI / CON / CMOM / LIN / TRAP in local, global
+  and projected axes), SELFWEIGHT, SET Z UP, UNIT anywhere, and a choice of load case.
+  Everything else is a warning. Tested against closed forms (cantilever PL³/3EI, simply
+  supported beam 5wL⁴/384EI in mm and N, statics for every member load type, method of joints
+  for a truss), against the same portal frame entered as tables, and Z-up against Y-up.
+- [x] **Import dialog**: paste or load each table (or a file), units, plane-frame choice,
+  STAAD load case, live preview with counts, errors and warnings. Open also accepts `.std`
+  files and CSV bundles.
+- [x] **`?model=<url>`** fetches and imports on load (https or same site), removes itself from
+  the address, explains blocked CORS fetches, and opens the dialog on errors. Samples are in
+  `public/samples`.
+- [x] **`window.frameforge`** (`load`, `importCsv`, `importStd`, `importText`, `analyze`,
+  `getModel`) and **postMessage** from the parent / opener, with reads only after that page
+  has loaded a model (DECISIONS 63).
+- [x] **Headless CLI** `scripts/analyze.ts` (`npm run --silent analyze -- <file>`): JSON, CSV
+  or `.std` in, results JSON out; exit codes 0 / 1 / 2 / 3.
+- [x] **e2e**: 19 new checks (dialog, errors, STAAD load case, Open with `.std`, `?model=`,
+  blocked fetch, `window.frameforge`, postMessage in an iframe). README "Bring your own model",
+  Help text, DECISIONS 52–67.
+
+**Status:** done. Tests: 1,429 (41 files), all passing. Coverage, now including `src/import`,
+is 99 % statements and 95.6 % branches. The end-to-end run passes 161 / 161 checks on a local
+preview build. The PR into `main` must not be merged by an agent.
+
+## Done: one 3D app (branch `feat/3d-only`, merged in #2)
 
 Goal: remove the 2D workspace without losing any capability — every 2D feature must work in
 the 3D workspace. Branched from `feat/3d-space-structures` (PR #1 was not merged). Phases,
@@ -91,8 +130,12 @@ pass:
 
 ## If you resume
 
-- Everything above is committed and pushed on `feat/3d-only`; the PR into `main` is open and
-  must not be merged by an agent. `npm run check`, `npm run format:check`, `npm run coverage`
+- `feat/model-import` is committed and pushed; its PR into `main` is open and must not be
+  merged by an agent. The worktree `.claude/worktrees/model-import` runs as the preview config
+  `frameforge-model-import` (port 5191). Ideas for later: angle and hollow sections in the CSV
+  / STAAD mapping, more STAAD tables, importing several load cases once FrameForge has
+  load combinations.
+- (One 3D app) Everything below was committed and pushed on `feat/3d-only` and merged in #2. `npm run check`, `npm run format:check`, `npm run coverage`
   and `npm run e2e -- http://localhost:4179/` (after `npm run build && npx vite preview --port
   4179`) all pass.
 - Ideas, in order: load combinations (IS 875), angle and hollow sections, settlements and

@@ -95,7 +95,31 @@ shell and elasticity benchmarks.
 - Save and open JSON, shareable links (the whole model is compressed into the URL, nothing is
   uploaded), PNG export; your last model is restored when you come back
 - Files, links and saved models of the former 2D version of FrameForge open as plane frames
+- Import models from other software: CSV tables (Excel), STAAD.Pro `.std` files, `?model=` URLs,
+  a JavaScript / postMessage API and a command-line analyser (see below)
 - Dark and light themes, responsive layout down to phone width, keyboard shortcuts
+
+## Bring your own model
+
+Models from other software come in through one validated format
+([`docs/model.schema.json`](docs/model.schema.json)). Full details are in
+[docs/IMPORT.md](docs/IMPORT.md).
+
+- **Tables (CSV / Excel).** Click **Import** and paste or load tables of nodes (`id,x,y,z`),
+  members (`id,i,j,section,type`), supports, nodal loads and member loads. Optional section
+  and material tables are also accepted. Comma, tab and semicolon separators all work, header
+  names are matched loosely, and you can choose m or mm and kN or N. Errors show the table and
+  line number before anything is created.
+- **STAAD.Pro.** Open a `.std` file. FrameForge reads joint and member generation with REPEAT,
+  ISMB / ISMC tables, PRIS sections, constants, releases, supports, joint and member loads,
+  self-weight, SET Z UP and a choice of load case. Anything it cannot use is listed as a
+  warning.
+- **By URL.** `?model=<https url to .json, .std or a CSV bundle>` opens a model on load, for
+  example [a STAAD portal frame](https://wrucebayne29.github.io/frameforge/?model=samples/portal-frame.std).
+- **JavaScript.** `window.frameforge.load / importCsv / importStd / analyze / getModel`, plus
+  the same requests by `postMessage` from a page that embeds FrameForge in an iframe.
+- **Headless.** `npx tsx scripts/analyze.ts model.std > results.json` runs the same solver in
+  Node and prints displacements, reactions and member forces as JSON.
 
 ## Screenshots
 
@@ -161,6 +185,7 @@ npm run dev
 | `npm run validation` | Regenerate `VALIDATION.md` (plane-frame problems) |
 | `npm run validation3d` | Regenerate `VALIDATION_3D.md` (3D problems) |
 | `npm run e2e` | Playwright script that clicks through every feature (`node scripts/e2e3d.mjs <url>`) |
+| `npm run --silent analyze -- <model>` | Analyse a `.json`, `.std` or CSV-bundle model from the command line; results JSON on stdout ([docs/IMPORT.md](docs/IMPORT.md)) |
 | `npm run screenshots` | Regenerate the screenshots and GIF in this README (needs `npx vite preview --port 4179`) |
 
 ## How it works
@@ -353,6 +378,9 @@ flowchart LR
         Files["JSON files · share links<br/>2D migration"]
         Pdf["PDF report (lazy)"]
     end
+    subgraph Import["src/import — pure"]
+        Importers["CSV tables · STAAD .std<br/>interchange JSON · results JSON"]
+    end
 
     Viewer --> Store
     Panels --> Store
@@ -368,6 +396,8 @@ flowchart LR
     Modal --> Viewer
     Influence --> Viewer
     Project --> Files
+    Importers --> Files
+    Importers --> Store
     Statics --> Pdf
     IS800 --> Pdf
 ```
@@ -380,14 +410,16 @@ src/
   model3d/        the project model, units, generators, plane-frame mode, design wiring, from2D
   examples3d/     nine 3D examples, plus the nine 2D examples converted to plane frames
   io/             JSON files, share links, migration of old 2D files and links, PDF report
+  import/         CSV tables and bundles, STAAD.Pro .std reader, interchange JSON, results JSON
   ui3d/           React components and the three.js viewer
   solver/, model/, examples/
                   the original 2D solver and project model: kept to read old 2D files and as the
                   reference the plane-frame mode is tested against
 tests/validation/ 26 plane-frame problems, 27 3D problems, plane-mode equivalence tests
-scripts/          Playwright end-to-end script and screenshot generator
+scripts/          Playwright end-to-end script, screenshot generator, analyze.ts (headless CLI)
 docs/             THEORY.md (plane frames, IS 800), THEORY_3D.md (3D elements, mass, eigen
-                  solver, influence lines) and screenshots
+                  solver, influence lines), IMPORT.md and model.schema.json, screenshots
+public/samples/   sample models to import (STAAD, CSV bundle, JSON)
 ```
 
 Engineering rules the code holds itself to: strict TypeScript with no `any`, ESLint and Prettier
@@ -410,7 +442,9 @@ clean, coverage thresholds enforced in CI, and lint + tests + build run before e
 ## Limitations
 
 - Linear elastic, small displacements; no P-Δ, buckling analysis, cracking or yielding.
-- One load case; no load combinations — enter factored loads directly.
+- One load case; no load combinations — enter factored loads directly. STAAD imports bring in
+  one load case at a time; plates, offsets, springs and floor loads in a `.std` file are skipped
+  with a warning.
 - The IS 800 check uses the largest values along each member (not the concurrent values at one
   section), the analysis loads as design loads, and the simplified linear section interaction.
   Torsion is not checked. Members with custom sections are skipped.

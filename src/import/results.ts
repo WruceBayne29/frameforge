@@ -48,9 +48,13 @@ export interface ResultsJson {
       end: SectionForces;
       /** Forces the joints exert on the member ends, local axes: [Fx…Mz]_i, [Fx…Mz]_j. */
       endForces: number[];
+      /**
+       * `Nmax` / `Nmin`: algebraic largest and smallest axial force (tension positive). The
+       * others: the signed value where the magnitude is largest.
+       */
       max: {
-        tension: number;
-        compression: number;
+        Nmax: number;
+        Nmin: number;
         Vy: number;
         Vz: number;
         T: number;
@@ -94,8 +98,8 @@ export function resultsJson(
       end: forces(last),
       endForces: m.endForces.map(r),
       max: {
-        tension: r(m.maxAxial.value),
-        compression: r(m.minAxial.value),
+        Nmax: r(m.maxAxial.value),
+        Nmin: r(m.minAxial.value),
         Vy: r(m.maxAbsVy.value),
         Vz: r(m.maxAbsVz.value),
         T: r(m.maxAbsTorsion.value),
