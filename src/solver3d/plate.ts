@@ -717,3 +717,27 @@ export function plateResult(el: PlateElement, u: number[]): PlateResult3D {
     maxVonMises,
   };
 }
+
+/**
+ * Consistent mass matrix (24 × 24, global axes) of a plate from its mass per unit volume
+ * `plate.mass`: ρ·t·∫NᵢNⱼ dA for the three translations and the rotary inertia
+ * ρ·t³/12·∫NᵢNⱼ dA for the two bending rotations (Mindlin), none for the drilling rotation.
+ * 2 × 2 Gauss is exact (NᵢNⱼ·detJ is at most cubic in ξ and in η).
+ */
+export function plateMass(el: PlateElement): number[][] {
+  const rho = el.plate.mass ?? 0;
+  const t = el.plate.t;
+  const m = zeros(24, 24);
+  if (rho === 0) return m;
+  for (const [xi, eta] of GAUSS_POINTS) {
+    const s = shapeAt(el.local, xi, eta);
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        const nn = s.N[i] * s.N[j] * s.detJ;
+        for (let c = 0; c < 3; c++) m[6 * i + c][6 * j + c] += rho * t * nn;
+        for (let c = 3; c < 5; c++) m[6 * i + c][6 * j + c] += ((rho * t ** 3) / 12) * nn;
+      }
+    }
+  }
+  return toGlobal(m, [el.axes.x, el.axes.y, el.axes.z]);
+}

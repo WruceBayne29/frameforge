@@ -8,3 +8,6 @@ export type { PlateAxes } from './plate';
 export { SOLID_FACES } from './solid';
 export { SkylineMatrix, rcmOrder } from './sparse';
 export type { FactorOptions, FactorResult } from './sparse';
+export { modalAnalysis3d, refineModel3D } from './modal';
+export type { Mode3D, ModalOptions3D, ModalResult3D, ModeStation3D } from './modal';
+export { jacobiEigen, subspaceIteration } from './eigen';

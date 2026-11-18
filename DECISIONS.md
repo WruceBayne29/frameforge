@@ -132,3 +132,19 @@ members".
     both axes, so converted examples keep their 2D design results.
 43. **Design demands are the largest values along each member** (|N|, |Mz|, |My|, |Vy|, |Vz|),
     not the concurrent values at one section — conservative, and how the 2D app worked.
+44. **Subspace iteration, not Lanczos, for the 3D eigenproblem.** It reuses the skyline
+    factorisation, needs no reorthogonalisation bookkeeping and is easy to verify. Each step
+    M-orthonormalises the vectors before the Rayleigh–Ritz projection (with an unfactorised
+    copy of K), which keeps the small problem well conditioned; when many members have nearly
+    the same local frequency (the braced-frame example has a cluster of 9+ within 0.2 %), the
+    subspace is widened by 8 vectors at a time, up to 120, so the iteration does not stall.
+45. **Torsional inertia uses the polar moment Ip = Iy + Iz; rotary inertia of bending is
+    neglected** (Euler–Bernoulli, consistent with the stiffness and the 2D app).
+46. **A (near-)zero-frequency mode is an error, not a result.** It means a mechanism the
+    static factorisation did not flag (round-off pivot), e.g. a slab spinning in its own plane
+    against only its drilling stiffness. This check exposed exactly that in the "Simply
+    supported slab" example (the second in-plane support restrained X along the X edge); the
+    example now restrains Z there. Static results under vertical load are unchanged.
+47. **VALIDATION_3D case M04 tolerance (2 %) was set after the first run** — the only
+    tolerance not fixed in advance: the second plate mode on the 16 × 16 mesh came out 1.4 %
+    high while the fundamental is within 0.3 %. Stated in the case and here.

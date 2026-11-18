@@ -272,7 +272,7 @@ const simplySupportedSlab = () =>
       b.support(edge, VERTICAL_ONLY);
       // Just enough in-plane restraint to stop the slab sliding or spinning.
       b.support(slab.grid[0][0], PINNED_SUPPORT);
-      b.support(slab.grid[0][n], [true, true, false, false, false, false]);
+      b.support(slab.grid[0][n], [false, true, true, false, false, false]);
       b.pressure(slab.plates, 10);
     },
   );

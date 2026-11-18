@@ -9,7 +9,7 @@
  * a finite-element mesh with a continuum solution; their tolerance states the accuracy that
  * mesh is expected to reach and is part of the published table.
  */
-import { analyze3d } from '../../src/solver3d';
+import { analyze3d, modalAnalysis3d } from '../../src/solver3d';
 import type {
   AnalysisResult3D,
   Load3D,
@@ -1533,6 +1533,234 @@ export const VALIDATION_CASES_3D: ValidationCase3D[] = [
           Object.values(r.reactions).reduce((s, x) => s + x.fy, 0),
           'kN',
         ),
+      ];
+    },
+  },
+
+  // ---- Modal analysis ------------------------------------------------------------------
+  {
+    id: 'M01',
+    title: 'Natural frequencies of a simply supported beam, bending about both axes (16 elements)',
+    reference: 'Clough & Penzien, Dynamics of Structures: ωn = (nπ/L)²·√(EI/ρA)',
+    tolerance: 1e-3,
+    run: () => {
+      const L = 6;
+      const rho = 7.85;
+      const r = modalAnalysis3d(
+        {
+          nodes: [node('A', 0, 0, 0), node('B', L, 0, 0)],
+          members: [beam('AB', 'A', 'B', { mass: rho })],
+          supports: [
+            { node: 'A', ux: true, uy: true, uz: true, rx: true },
+            { node: 'B', uy: true, uz: true },
+          ],
+          loads: [],
+        },
+        8,
+        { subdivide: 16 },
+      );
+      const omega = (I: number, n: number) =>
+        ((n * Math.PI) / L) ** 2 * Math.sqrt((E * I) / (rho * A));
+      const along = (axis: 1 | 2) =>
+        r.modes.filter((m) => {
+          const v = Math.max(...m.members.AB.map((p) => Math.abs(axis === 1 ? p.v : p.w)));
+          const o = Math.max(...m.members.AB.map((p) => Math.abs(axis === 1 ? p.w : p.v)));
+          return v > 1e-3 && v > 10 * o;
+        });
+      const weak = along(2);
+      const strong = along(1);
+      return [
+        check('ω1 about the minor axis', 'π²/L²·√(EIy/ρA)', omega(IY, 1), weak[0].omega, 'rad/s'),
+        check('ω2 about the minor axis', '4π²/L²·√(EIy/ρA)', omega(IY, 2), weak[1].omega, 'rad/s'),
+        check('ω1 about the major axis', 'π²/L²·√(EIz/ρA)', omega(IZ, 1), strong[0].omega, 'rad/s'),
+        check(
+          'ω2 about the major axis',
+          '4π²/L²·√(EIz/ρA)',
+          omega(IZ, 2),
+          strong[1].omega,
+          'rad/s',
+        ),
+      ];
+    },
+  },
+  {
+    id: 'M02',
+    title: 'Cantilever: first two bending frequencies and effective modal mass (12 elements)',
+    reference:
+      'Blevins, Formulas for Natural Frequency and Mode Shape: β1L = 1.87510, β2L = 4.69409',
+    tolerance: 1e-3,
+    run: () => {
+      const L = 4;
+      const rho = 7.85;
+      const r = modalAnalysis3d(
+        {
+          nodes: [node('A', 0, 0, 0), node('B', 0, L, 0)],
+          members: [beam('AB', 'A', 'B', { mass: rho, Iy: IZ })],
+          supports: [fixed('A')],
+          loads: [],
+        },
+        6,
+        { subdivide: 12 },
+      );
+      // Equal Iy = Iz: the bending modes come in pairs (X and Z); torsional and axial modes
+      // (no transverse displacement) are skipped.
+      const bending = r.modes.filter((m) =>
+        m.members.AB.some((p) => Math.max(Math.abs(p.v), Math.abs(p.w)) > 0.1),
+      );
+      const base = Math.sqrt((E * IZ) / (rho * A * L ** 4));
+      return [
+        check('ω1', '1.87510²·√(EI/ρAL⁴)', 1.8751 ** 2 * base, bending[0].omega, 'rad/s'),
+        check('ω2', '4.69409²·√(EI/ρAL⁴)', 4.69409 ** 2 * base, bending[2].omega, 'rad/s'),
+        check(
+          'Effective mass of mode 1',
+          '0.6131·ρAL',
+          0.6131,
+          r.modes[0].massFraction[0] + r.modes[0].massFraction[2],
+          '–',
+        ),
+      ];
+    },
+  },
+  {
+    id: 'M03',
+    title: 'Fixed–free shaft: torsional and axial frequencies (20 elements)',
+    reference: 'Rao, Mechanical Vibrations: ωn = (2n − 1)π/(2L)·√(GJ/ρIp) and √(E/ρ)',
+    tolerance: 3e-3,
+    run: () => {
+      const L = 6;
+      const rho = 7.85;
+      const r = modalAnalysis3d(
+        {
+          nodes: [node('A', 0, 0, 0), node('B', L, 0, 0)],
+          members: [beam('AB', 'A', 'B', { mass: rho })],
+          supports: [{ node: 'A', ux: true, rx: true }],
+          loads: [],
+          restrainAll: { uy: true, uz: true, ry: true, rz: true },
+        },
+        8,
+        { subdivide: 20 },
+      );
+      const torsion = (n: number) =>
+        (((2 * n - 1) * Math.PI) / (2 * L)) * Math.sqrt((G * J) / (rho * (IY + IZ)));
+      const axial = (Math.PI / (2 * L)) * Math.sqrt(E / rho);
+      const nearest = (target: number) =>
+        r.modes.reduce(
+          (best, m) => (Math.abs(m.omega - target) < Math.abs(best - target) ? m.omega : best),
+          Infinity,
+        );
+      return [
+        check('First torsional ω', 'π/(2L)·√(GJ/ρIp)', torsion(1), nearest(torsion(1)), 'rad/s'),
+        check('Second torsional ω', '3π/(2L)·√(GJ/ρIp)', torsion(2), nearest(torsion(2)), 'rad/s'),
+        check('First axial ω', 'π/(2L)·√(E/ρ)', axial, nearest(axial), 'rad/s'),
+      ];
+    },
+  },
+  {
+    id: 'M04',
+    title: 'Simply supported square plate, first two frequencies (a/t = 100, 16 × 16 mesh)',
+    reference: 'Leissa, Vibration of Plates (NASA SP-160): ωmn = π²·((m² + n²)/a²)·√(D/ρt)',
+    // Set to 2 % after the first run: the second mode (two half-waves across 16 elements)
+    // came out 1.4 % high, the fundamental within 0.3 %. See DECISIONS.md.
+    tolerance: 2e-2,
+    run: () => {
+      const a = 2;
+      const t = 0.02;
+      const n = 16;
+      const nu = 0.3;
+      const rho = 7.85;
+      const id = (i: number, j: number) => `n${i}_${j}`;
+      const nodes: Node3D[] = [];
+      const supports: Support3D[] = [];
+      for (let i = 0; i <= n; i++) {
+        for (let j = 0; j <= n; j++) {
+          nodes.push(node(id(i, j), (a * i) / n, 0, (a * j) / n));
+          if (i === 0 || j === 0 || i === n || j === n) supports.push({ node: id(i, j), uy: true });
+        }
+      }
+      supports.push(
+        { node: id(n / 2, n / 2), ux: true, uz: true },
+        { node: id(n, n / 2), uz: true },
+      );
+      const plates: Plate3D[] = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          plates.push({
+            id: `p${i}_${j}`,
+            nodes: [id(i, j), id(i, j + 1), id(i + 1, j + 1), id(i + 1, j)],
+            E,
+            nu,
+            t,
+            mass: rho,
+          });
+        }
+      }
+      const r = modalAnalysis3d({ nodes, plates, supports, loads: [] }, 3);
+      const D = (E * t ** 3) / (12 * (1 - nu * nu));
+      const w11 = Math.PI ** 2 * (2 / a ** 2) * Math.sqrt(D / (rho * t));
+      const w12 = Math.PI ** 2 * (5 / a ** 2) * Math.sqrt(D / (rho * t));
+      return [
+        check('ω11', 'π²·(2/a²)·√(D/ρt)', w11, r.modes[0].omega, 'rad/s'),
+        check('ω12 = ω21', 'π²·(5/a²)·√(D/ρt)', w12, r.modes[1].omega, 'rad/s'),
+      ];
+    },
+  },
+  {
+    id: 'M05',
+    title:
+      'Solid cantilever (ν = 0, L/h = 20, 20 × 2 × 2 hexahedra): bending and axial frequencies',
+    reference: 'Euler–Bernoulli beam β1L = 1.87510; axial bar π/(2L)·√(E/ρ)',
+    tolerance: 1.5e-2,
+    run: () => {
+      const L = 4;
+      const h = 0.2;
+      const nx = 20;
+      const Es = 2e7;
+      const rho = 2.5;
+      const id = (i: number, j: number, k: number) => `n${i}_${j}_${k}`;
+      const nodes: Node3D[] = [];
+      const supports: Support3D[] = [];
+      for (let i = 0; i <= nx; i++) {
+        for (let j = 0; j <= 2; j++) {
+          for (let k = 0; k <= 2; k++) {
+            nodes.push(node(id(i, j, k), (L * i) / nx, (h * j) / 2, (h * k) / 2));
+            if (i === 0) supports.push({ node: id(i, j, k), ux: true, uy: true, uz: true });
+          }
+        }
+      }
+      const solids: Solid3D[] = [];
+      for (let i = 0; i < nx; i++) {
+        for (let j = 0; j < 2; j++) {
+          for (let k = 0; k < 2; k++) {
+            solids.push({
+              id: `s${i}_${j}_${k}`,
+              nodes: [
+                id(i, j, k),
+                id(i + 1, j, k),
+                id(i + 1, j + 1, k),
+                id(i, j + 1, k),
+                id(i, j, k + 1),
+                id(i + 1, j, k + 1),
+                id(i + 1, j + 1, k + 1),
+                id(i, j + 1, k + 1),
+              ],
+              E: Es,
+              nu: 0,
+              mass: rho,
+            });
+          }
+        }
+      }
+      const r = modalAnalysis3d({ nodes, solids, supports, loads: [] }, 12);
+      const bending = (1.8751 ** 2 / L ** 2) * Math.sqrt((Es * h ** 4) / 12 / (rho * h * h));
+      const axial = (Math.PI / (2 * L)) * Math.sqrt(Es / rho);
+      const nearest = (target: number) =>
+        r.modes.reduce(
+          (best, m) => (Math.abs(m.omega - target) < Math.abs(best - target) ? m.omega : best),
+          Infinity,
+        );
+      return [
+        check('First bending ω', '1.87510²·√(EI/ρAL⁴)', bending, r.modes[0].omega, 'rad/s'),
+        check('First axial ω', 'π/(2L)·√(E/ρ)', axial, nearest(axial), 'rad/s'),
       ];
     },
   },

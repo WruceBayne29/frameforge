@@ -346,3 +346,22 @@ table.data.compact th {
 .design-breakdown h4 {
   margin: 0 0 4px;
 }
+
+/* Six panel tabs: sized to their text, wrapping onto a second row when the panel is narrow. */
+.app3d .tabs {
+  flex-wrap: wrap;
+}
+
+.app3d .tabs button {
+  flex: 1 0 auto;
+  padding: 5px 6px;
+  font-size: 13px;
+}
+
+.app3d .tabs button.panel-toggle {
+  flex: none;
+}
+
+.app3d {
+  overflow: hidden;
+}

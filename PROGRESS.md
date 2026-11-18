@@ -30,7 +30,19 @@ pass:
   breakdown), utilisation colours (chip + U key), K overrides in member Properties.
   `tests/validation/design.test.ts`: plane-mode design of every 2D example matches the 2D app
   (same members, class, checks, governing check; ratios to 1e-9).
-- [ ] Phase 3 — modal analysis in 3D (consistent mass, subspace iteration on the skyline).
+- [x] **Phase 3 — modal analysis in 3D.** `prepareSystem` / `assembleStiffness` split out of
+  `analyze3d` (shared by statics, modal, influence lines); `restrainAll` in the solver model
+  carries the plane restraint (also to subdivision nodes). Consistent mass: `lineMass` (beam
+  12×12 with torsional inertia ρ(Iy+Iz)L, releases by Guyan reduction; truss), `plateMass`
+  (translations + rotary inertia ρt³/12), `solidMass` (3×3×3 Gauss). `eigen.ts`: subspace
+  iteration on the skyline factorisation, M-orthonormalised Rayleigh–Ritz, subspace widened
+  past clusters of close eigenvalues. `modalAnalysis3d` (subdivision like 2D `refineModel`,
+  nodal masses, effective mass fractions, zero-frequency mechanism check). Project level:
+  `modalProject3D`, `Project3D.masses` (node Properties), material density / g. UI: Advanced
+  tab (frequencies table, mass fractions), animated mode shapes. Tests: plane-mode modal of
+  every 2D example = 2D app (frequencies 1e-8), V23/V24 through plane mode, closed forms in
+  `solver3d/modal.test.ts`, VALIDATION_3D cases M01–M05. Found and fixed: the "Simply
+  supported slab" example could spin in its own plane (wrong in-plane support direction).
 - [ ] Phase 4 — influence lines in 3D (one factorisation, many right-hand sides).
 - [ ] Phase 5 — PDF report for Project3D.
 - [ ] Phase 6 — delete the 2D UI, migrate old files / `#m=` links / autosave.

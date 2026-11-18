@@ -89,10 +89,18 @@ describe('toSolverModel3D', () => {
       nu: 0.2,
       t: 0.15,
       density: 25,
+      mass: 25 / 9.80665,
     });
+    expect(m?.mass).toBeCloseTo(77 / 9.80665, 12);
     expect(model.supports).toEqual([
       { node: 'N1', ux: true, uy: true, uz: true, rx: true, ry: true, rz: true },
     ]);
+    expect(model.masses).toBeUndefined();
+    p.masses = [
+      { node: 'N2', mass: 1.5 },
+      { node: 'gone', mass: 3 },
+    ];
+    expect(toSolverModel3D(p).masses).toEqual([{ node: 'N2', mass: 1.5 }]);
   });
 
   it('uses the first material when the name is unknown', () => {

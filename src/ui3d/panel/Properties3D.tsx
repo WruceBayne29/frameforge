@@ -3,6 +3,7 @@ import {
   isPlane,
   memberProps3D,
   nodesOffPlane,
+  setNodeMass,
   setPlaneMode,
   utilisationColor,
 } from '../../model3d';
@@ -167,6 +168,15 @@ function NodeProperties({ ids }: { ids: string[] }) {
         />
       )}
       {single && supports[0] && <p className="muted">Restrained: {restraintLabel(supports[0])}</p>}
+      <Row label="Lumped mass (t)" hint="Extra mass for modal analysis, acting in X, Y and Z">
+        <NumberField
+          value={common(ids, (id) => project.masses?.find((m) => m.node === id)?.mass ?? 0)}
+          min={0}
+          placeholder="mixed"
+          label="Lumped mass (t)"
+          onCommit={(mass) => edit(setNodeMass(project, ids, mass))}
+        />
+      </Row>
     </>
   );
 }

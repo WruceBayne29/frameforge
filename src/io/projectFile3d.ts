@@ -415,6 +415,13 @@ export function parseProject3D(data: unknown): Project3D {
   if (typeof data.description === 'string' && data.description) {
     project.description = data.description.slice(0, 600);
   }
+  const masses = list(data.masses, 'masses').flatMap((raw, k) => {
+    if (!isObject(raw)) return fail(`Mass ${k + 1} is malformed.`);
+    const mass = num(raw.mass, `Mass ${k + 1}`);
+    if (mass < 0) fail(`Mass ${k + 1} is negative.`);
+    return mass > 0 ? [{ node: needNode(raw.node, `Mass ${k + 1}`), mass }] : [];
+  });
+  if (masses.length > 0) project.masses = masses;
   if (data.plane !== undefined && data.plane !== null) {
     project.plane = oneOf(data.plane, ['XY'] as const, 'Plane');
   }

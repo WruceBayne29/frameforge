@@ -1,8 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useState } from 'react';
 import type { Dispatch, ReactNode } from 'react';
 import type { Project3D } from '../model3d';
-import { estimatedEquations, initialState3D, reducer3D, solveProject3D } from './state';
-import type { Action3D, AppState3D, Solution3D } from './state';
+import {
+  estimatedEquations,
+  initialState3D,
+  reducer3D,
+  solveExtras3D,
+  solveProject3D,
+} from './state';
+import type { Action3D, AppState3D, Extras3D, Solution3D } from './state';
 
 export * from './state';
 
@@ -16,6 +22,8 @@ interface StoreValue {
   dispatch: Dispatch<Action3D>;
   /** Solution of `state.project`; `pending` (with no result) while a large model waits. */
   solution: Solution3D;
+  /** Optional analyses (modal) switched on in the Advanced tab. */
+  extras: Extras3D;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -45,7 +53,10 @@ export function StoreProvider3D({
         : { project, result: null, design: {}, error: null, pending: true }),
     [direct, delayed, project],
   );
-  const value = useMemo(() => ({ state, dispatch, solution }), [state, solution]);
+  // Only the switches matter, not which mode is being shown.
+  const modal = state.advanced.modal;
+  const extras = useMemo(() => solveExtras3D(project, { modal, mode: null }), [project, modal]);
+  const value = useMemo(() => ({ state, dispatch, solution, extras }), [state, solution, extras]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

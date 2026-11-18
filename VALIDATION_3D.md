@@ -1,6 +1,6 @@
 # 3D validation
 
-FrameForge's 3D solver is checked against **20 problems** (103 individual quantities): closed-form answers for space trusses and frames, and published thin-plate, shell and elasticity solutions for the plate and solid elements. Every case runs through the public `analyze3d` API exactly as the app does.
+FrameForge's 3D solver is checked against **25 problems** (117 individual quantities): closed-form answers for space trusses and frames, and published thin-plate, shell and elasticity solutions for the plate and solid elements. Every case runs through the public `analyze3d` API exactly as the app does.
 
 Each case has its own tolerance, shown in the table. Truss and beam elements are exact for
 the loads they carry, so those cases must match to **0.1 %**, like the 2D suite. Plate and
@@ -41,6 +41,11 @@ the largest reference value of the case.
 | H02 | Slender solid cantilever (L/h = 10) with an end shear, 20 × 2 × 2 hexahedra | 3 | 1 % | 0.1524 % |
 | H03 | Constant-strain patch test on a distorted 3 × 3 × 3 mesh of a unit cube | 9 | 0.1 % | < 0.0001 % |
 | H04 | Solid column under its own weight (ν = 0, 2 × 6 × 2 hexahedra) | 4 | 0.1 % | < 0.0001 % |
+| M01 | Natural frequencies of a simply supported beam, bending about both axes (16 elements) | 4 | 0.1 % | 0.0016 % |
+| M02 | Cantilever: first two bending frequencies and effective modal mass (12 elements) | 3 | 0.1 % | 0.0378 % |
+| M03 | Fixed–free shaft: torsional and axial frequencies (20 elements) | 3 | 0.3 % | 0.2315 % |
+| M04 | Simply supported square plate, first two frequencies (a/t = 100, 16 × 16 mesh) | 2 | 2 % | 1.4340 % |
+| M05 | Solid cantilever (ν = 0, L/h = 20, 20 × 2 × 2 hexahedra): bending and axial frequencies | 2 | 1.5 % | 0.1141 % |
 
 ## Full results
 
@@ -286,3 +291,52 @@ Reference: Prismatic bar under its own weight, σ = −ρg(H − y), δ = ρgH²
 | Displacement at mid-height | ρg(Hy − y²/2)/E | -1.1250e-5 m | -1.1250e-5 m | 0.0000 % |
 | σyy at the centre of the bottom element | −ρg(H − y) | -137.500 kN/m² | -137.500 kN/m² | 0.0000 % |
 | Base reaction | ρg·V | 150.000 kN | 150.000 kN | 0.0000 % |
+
+### M01 — Natural frequencies of a simply supported beam, bending about both axes (16 elements)
+
+Reference: Clough & Penzien, Dynamics of Structures: ωn = (nπ/L)²·√(EI/ρA). Tolerance: 0.1 %.
+
+| Quantity | Reference value | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| ω1 about the minor axis | π²/L²·√(EIy/ρA) | 87.5200 rad/s | 87.5201 rad/s | 0.0001 % |
+| ω2 about the minor axis | 4π²/L²·√(EIy/ρA) | 350.080 rad/s | 350.086 rad/s | 0.0016 % |
+| ω1 about the major axis | π²/L²·√(EIz/ρA) | 151.589 rad/s | 151.589 rad/s | 0.0001 % |
+| ω2 about the major axis | 4π²/L²·√(EIz/ρA) | 606.356 rad/s | 606.366 rad/s | 0.0016 % |
+
+### M02 — Cantilever: first two bending frequencies and effective modal mass (12 elements)
+
+Reference: Blevins, Formulas for Natural Frequency and Mode Shape: β1L = 1.87510, β2L = 4.69409. Tolerance: 0.1 %.
+
+| Quantity | Reference value | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| ω1 | 1.87510²·√(EI/ρAL⁴) | 121.507 rad/s | 121.507 rad/s | 0.0005 % |
+| ω2 | 4.69409²·√(EI/ρAL⁴) | 761.471 rad/s | 761.484 rad/s | 0.0017 % |
+| Effective mass of mode 1 | 0.6131·ρAL | 0.613100 – | 0.612868 – | 0.0378 % |
+
+### M03 — Fixed–free shaft: torsional and axial frequencies (20 elements)
+
+Reference: Rao, Mechanical Vibrations: ωn = (2n − 1)π/(2L)·√(GJ/ρIp) and √(E/ρ). Tolerance: 0.3 %.
+
+| Quantity | Reference value | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| First torsional ω | π/(2L)·√(GJ/ρIp) | 323.946 rad/s | 324.029 rad/s | 0.0257 % |
+| Second torsional ω | 3π/(2L)·√(GJ/ρIp) | 971.837 rad/s | 974.086 rad/s | 0.2315 % |
+| First axial ω | π/(2L)·√(E/ρ) | 1.3214e+3 rad/s | 1.3218e+3 rad/s | 0.0257 % |
+
+### M04 — Simply supported square plate, first two frequencies (a/t = 100, 16 × 16 mesh)
+
+Reference: Leissa, Vibration of Plates (NASA SP-160): ωmn = π²·((m² + n²)/a²)·√(D/ρt). Tolerance: 2 %.
+
+| Quantity | Reference value | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| ω11 | π²·(2/a²)·√(D/ρt) | 150.754 rad/s | 151.233 rad/s | 0.3177 % |
+| ω12 = ω21 | π²·(5/a²)·√(D/ρt) | 376.885 rad/s | 382.289 rad/s | 1.4340 % |
+
+### M05 — Solid cantilever (ν = 0, L/h = 20, 20 × 2 × 2 hexahedra): bending and axial frequencies
+
+Reference: Euler–Bernoulli beam β1L = 1.87510; axial bar π/(2L)·√(E/ρ). Tolerance: 1.5 %.
+
+| Quantity | Reference value | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| First bending ω | 1.87510²·√(EI/ρAL⁴) | 35.8850 rad/s | 35.8441 rad/s | 0.1141 % |
+| First axial ω | π/(2L)·√(E/ρ) | 1.1107e+3 rad/s | 1.1110e+3 rad/s | 0.0257 % |

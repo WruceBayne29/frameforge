@@ -1,6 +1,6 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { Ref } from 'react';
-import { colorMapCss, moveNode, nodalField, resultPeaks3D } from '../model3d';
+import { colorMapCss, modeAsResult, moveNode, nodalField, resultPeaks3D } from '../model3d';
 import type { AnalysisResult3D } from '../solver3d';
 import { DIAGRAMS_3D, fieldInfo, fieldTitle, fmt, legendTicks } from './format3d';
 import { clickAction, toolHint } from './interaction';
@@ -70,8 +70,11 @@ function Legend({ result }: { result: AnalysisResult3D | null }) {
   );
 }
 
+/** Period of one cycle of the mode-shape animation, s. */
+const MODE_PERIOD = 1.6;
+
 export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
-  const { state, dispatch, solution } = useStore3D();
+  const { state, dispatch, solution, extras } = useStore3D();
   const container = useRef<HTMLDivElement>(null);
   const engine = useRef<ViewerEngine | null>(null);
   const [failed, setFailed] = useState(false);
@@ -145,8 +148,16 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
     return null;
   }, [solution.error, state.project]);
 
+  // The mode shape being animated, drawn as a deflected shape.
+  const modeIndex = state.advanced.mode;
+  const mode = modeIndex !== null ? (extras.modal?.modes[modeIndex] ?? null) : null;
+  const modeResult = useMemo(
+    () => (mode ? modeAsResult(state.project, mode) : null),
+    [mode, state.project],
+  );
+
   useEffect(() => {
-    engine.current?.update({
+    const input = {
       project: state.project,
       result,
       design,
@@ -157,7 +168,34 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
       toolOptions: state.toolOptions,
       palette,
       problem,
-    });
+    };
+    if (!modeResult) {
+      engine.current?.update(input);
+      return;
+    }
+    // Animate: scale the mode shape by sin(2πt / T) every frame.
+    const view = {
+      ...state.view,
+      deformed: true,
+      diagram: 'none' as const,
+      contour: 'none' as const,
+      reactions: false,
+      utilisation: false,
+    };
+    const start = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const phase = Math.sin((((now - start) / 1000) * 2 * Math.PI) / MODE_PERIOD);
+      engine.current?.update({
+        ...input,
+        result: modeResult,
+        design: null,
+        view: { ...view, deformScale: 2.2 * state.view.deformScale * phase },
+      });
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
   }, [
     state.project,
     result,
@@ -169,6 +207,7 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
     state.toolOptions,
     palette,
     problem,
+    modeResult,
   ]);
 
   const { preset, count } = state.camera;
@@ -201,7 +240,16 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
         </div>
       )}
       {hint && <div className="canvas-hint">{hint}</div>}
-      <Legend result={result} />
+      {mode && modeIndex !== null ? (
+        <div className="legend3d" aria-label="Mode shape">
+          <strong>Mode {modeIndex + 1}</strong>
+          <span className="muted">
+            f = {fmt(mode.frequency)} Hz · T = {fmt(mode.period)} s
+          </span>
+        </div>
+      ) : (
+        <Legend result={result} />
+      )}
       {cursor && (
         <div className="canvas-readout">
           x {fmt(cursor[0])} · y {fmt(cursor[1])} · z {fmt(cursor[2])} m

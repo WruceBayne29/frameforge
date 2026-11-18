@@ -5,6 +5,7 @@ import {
   addNode,
   analyzeProject3D,
   emptyProject3D,
+  hasOutOfPlaneLoad,
   moveNode,
   nodesOffPlane,
   setPlaneMode,
@@ -61,11 +62,9 @@ describe('plane frame mode: model', () => {
   it('holds every node out of plane in the solver model only', () => {
     const p = portal();
     const model = toSolverModel3D(p);
-    expect(model.supports).toHaveLength(4);
-    for (const s of model.supports) expect([s.uz, s.rx, s.ry]).toEqual([true, true, true]);
-    expect(model.supports.find((s) => s.node === 'N2')).toMatchObject({ ux: false, uy: false });
-    // Without plane mode only the real supports remain.
-    expect(toSolverModel3D({ ...p, plane: undefined }).supports).toHaveLength(2);
+    expect(model.supports.map((s) => s.node)).toEqual(['N1', 'N4']);
+    expect(model.restrainAll).toEqual({ uz: true, rx: true, ry: true });
+    expect(toSolverModel3D({ ...p, plane: undefined }).restrainAll).toBeUndefined();
   });
 
   it('reports reactions only at the real supports, and no warnings', () => {
@@ -92,6 +91,54 @@ describe('plane frame mode: model', () => {
     });
     const r = analyzeProject3D(p);
     expect(r.warnings.some((w) => /out of the XY plane/.test(w))).toBe(true);
+    // Equilibrium still closes: the plane restraint's reactions are counted.
+    expect(Math.abs(r.equilibrium[2])).toBeLessThan(1e-9);
+  });
+
+  it('recognises out-of-plane loads of every kind', () => {
+    const p = portal();
+    const nodal = p.loads[0];
+    const add = (load: Project3D['loads'][number]) =>
+      hasOutOfPlaneLoad({ ...p, loads: [nodal, load] });
+    expect(hasOutOfPlaneLoad(p)).toBe(false);
+    expect(add({ id: 'a', kind: 'distributed', members: ['M2'], direction: 'localZ', w1: 1 })).toBe(
+      true,
+    );
+    expect(
+      add({ id: 'a', kind: 'distributed', members: ['M2'], direction: 'globalY', w1: 1 }),
+    ).toBe(false);
+    expect(
+      add({ id: 'a', kind: 'distributed', members: ['M2'], direction: 'globalZ', w1: 0, w2: 2 }),
+    ).toBe(true);
+    expect(add({ id: 'a', kind: 'point', members: ['M2'], direction: 'globalZ', P: 1, a: 1 })).toBe(
+      true,
+    );
+    expect(add({ id: 'a', kind: 'moment', members: ['M2'], direction: 'localZ', M: 1, a: 1 })).toBe(
+      false,
+    );
+    expect(
+      add({ id: 'a', kind: 'moment', members: ['M2'], direction: 'globalX', M: 1, a: 1 }),
+    ).toBe(true);
+    expect(add({ id: 'a', kind: 'pressure', plates: ['P1'], direction: 'localZ', p: 1 })).toBe(
+      true,
+    );
+    expect(
+      add({
+        id: 'a',
+        kind: 'platePoint',
+        plates: ['P1'],
+        direction: 'globalX',
+        P: 1,
+        xi: 0,
+        eta: 0,
+      }),
+    ).toBe(false);
+    expect(
+      add({ id: 'a', kind: 'face', solids: ['S1'], face: 1, direction: 'globalZ', p: 1 }),
+    ).toBe(true);
+    expect(add({ id: 'a', kind: 'face', solids: ['S1'], face: 1, direction: 'normal', p: 1 })).toBe(
+      false,
+    );
   });
 
   it('switches on only when every node lies on z = 0', () => {

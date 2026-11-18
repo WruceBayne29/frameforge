@@ -89,13 +89,6 @@ export function supportFromRestraints(node: string, restraints: Restraints6): Su
 /** Degrees of freedom a plane-frame (XY) project holds at every node: uz, rx and ry. */
 export const PLANE_HELD: Restraints6 = [false, false, true, true, true, false];
 
-/** Restraints of a node in the solver model: its support, plus the plane restraint. */
-function solverRestraints(restraints: Restraints6, plane: boolean): Restraints6 {
-  return plane
-    ? (restraints.map((r, k) => r || PLANE_HELD[k]) as Restraints6)
-    : ([...restraints] as Restraints6);
-}
-
 /** True when the project is a plane frame (lies in z = 0 and only moves in that plane). */
 export function isPlane(project: Pick<Project3D, 'plane'>): boolean {
   return project.plane === 'XY';
@@ -104,25 +97,6 @@ export function isPlane(project: Pick<Project3D, 'plane'>): boolean {
 /** Mass per unit volume (t/m³) of a material from its weight density (kN/m³). */
 export function massDensity(material: Material3D): number {
   return material.density / GRAVITY;
-}
-
-/**
- * Supports of the solver model. In plane mode every node also gets the out-of-plane
- * restraint (uz, rx, ry), merged into its own support when it has one.
- */
-function solverSupports(project: Project3D, nodeIds: Set<string>): Support3D[] {
-  const plane = isPlane(project);
-  const own = new Map<string, Restraints6>();
-  for (const s of project.supports) if (nodeIds.has(s.node)) own.set(s.node, s.restraints);
-  if (!plane) {
-    return [...own].map(([node, restraints]) => supportFromRestraints(node, restraints));
-  }
-  return project.nodes.map((n) =>
-    supportFromRestraints(
-      n.id,
-      solverRestraints(own.get(n.id) ?? [false, false, false, false, false, false], true),
-    ),
-  );
 }
 
 /**
@@ -152,6 +126,7 @@ export function toSolverModel3D(project: Project3D): StructureModel3D {
       J: props.J * CM4,
       beta: ((m.beta ?? 0) * Math.PI) / 180,
       density: material.density,
+      mass: massDensity(material),
     };
     if (m.releaseI) member.releaseI = { ...m.releaseI };
     if (m.releaseJ) member.releaseJ = { ...m.releaseJ };
@@ -235,6 +210,7 @@ export function toSolverModel3D(project: Project3D): StructureModel3D {
         nu: material.nu,
         t: p.thickness * MM,
         density: material.density,
+        mass: massDensity(material),
       };
     }),
     solids: project.solids.map((s) => {
@@ -245,9 +221,16 @@ export function toSolverModel3D(project: Project3D): StructureModel3D {
         E: material.E * GPA,
         nu: material.nu,
         density: material.density,
+        mass: massDensity(material),
       };
     }),
-    supports: solverSupports(project, nodeIds),
+    supports: project.supports
+      .filter((s) => nodeIds.has(s.node))
+      .map((s) => supportFromRestraints(s.node, s.restraints)),
     loads,
+    ...(isPlane(project) ? { restrainAll: { uz: true, rx: true, ry: true } } : {}),
+    ...(project.masses && project.masses.length > 0
+      ? { masses: project.masses.filter((m) => nodeIds.has(m.node)).map((m) => ({ ...m })) }
+      : {}),
   };
 }

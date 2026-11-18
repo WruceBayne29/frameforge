@@ -331,7 +331,7 @@ Plate and solid cases compare a finite-element mesh with a continuum solution; e
 tolerance its mesh is expected to meet, and the table shows the error actually reached.
 
 <!-- validation3d:start -->
-**20 problems, 103 quantities, each within its stated tolerance.**
+**25 problems, 117 quantities, each within its stated tolerance.**
 
 | # | Problem | Quantities | Tolerance | Max error |
 | --- | --- | ---: | ---: | ---: |
@@ -355,6 +355,11 @@ tolerance its mesh is expected to meet, and the table shows the error actually r
 | H02 | Slender solid cantilever (L/h = 10) with an end shear, 20 × 2 × 2 hexahedra | 3 | 1 % | 0.1524 % |
 | H03 | Constant-strain patch test on a distorted 3 × 3 × 3 mesh of a unit cube | 9 | 0.1 % | < 0.0001 % |
 | H04 | Solid column under its own weight (ν = 0, 2 × 6 × 2 hexahedra) | 4 | 0.1 % | < 0.0001 % |
+| M01 | Natural frequencies of a simply supported beam, bending about both axes (16 elements) | 4 | 0.1 % | 0.0016 % |
+| M02 | Cantilever: first two bending frequencies and effective modal mass (12 elements) | 3 | 0.1 % | 0.0378 % |
+| M03 | Fixed–free shaft: torsional and axial frequencies (20 elements) | 3 | 0.3 % | 0.2315 % |
+| M04 | Simply supported square plate, first two frequencies (a/t = 100, 16 × 16 mesh) | 2 | 2 % | 1.4340 % |
+| M05 | Solid cantilever (ν = 0, L/h = 20, 20 × 2 × 2 hexahedra): bending and axial frequencies | 2 | 1.5 % | 0.1141 % |
 <!-- validation3d:end -->
 
 ## Architecture

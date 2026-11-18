@@ -167,7 +167,20 @@ export function deleteNode(project: Project3D, id: string): Project3D {
     solids: project.solids.filter((s) => !solids.has(s.id)),
     supports: project.supports.filter((s) => s.node !== id),
     loads,
+    ...(project.masses ? { masses: project.masses.filter((m) => m.node !== id) } : {}),
   };
+}
+
+/** Sets (mass > 0) or removes (0) the lumped mass at the given nodes, tonnes. */
+export function setNodeMass(project: Project3D, nodes: readonly string[], mass: number): Project3D {
+  if (!(mass >= 0) || !Number.isFinite(mass)) return project;
+  const targets = new Set(nodes.filter((id) => project.nodes.some((n) => n.id === id)));
+  const kept = (project.masses ?? []).filter((m) => !targets.has(m.node));
+  const added = mass > 0 ? [...targets].map((node) => ({ node, mass })) : [];
+  const masses = [...kept, ...added];
+  const next: Project3D = { ...project, masses };
+  if (masses.length === 0) delete next.masses;
+  return next;
 }
 
 // ---- Elements ---------------------------------------------------------------------------

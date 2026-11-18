@@ -227,6 +227,14 @@ export interface Project3D {
   design: DesignSettings3D;
   /** Plane frame mode: the structure lies in the z = 0 plane and only moves in it. */
   plane?: ProjectPlane;
+  /** Lumped nodal masses for modal analysis, tonnes (t = kN·s²/m), acting in X, Y and Z. */
+  masses?: ProjectMass3D[];
+}
+
+export interface ProjectMass3D {
+  node: string;
+  /** t */
+  mass: number;
 }
 
 /** Standard gravity, m/s². Mass density (t/m³) = weight density (kN/m³) / GRAVITY. */

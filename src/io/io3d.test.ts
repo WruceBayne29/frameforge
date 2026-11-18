@@ -60,6 +60,30 @@ describe('3D project files', () => {
     expect(p.design).toEqual({ grade: 'E250', laterallyRestrained: false, kz: 1, ky: 1 });
   });
 
+  it('reads plane mode and lumped masses', () => {
+    const p = parseProject3D({
+      kind: 'space',
+      plane: 'XY',
+      nodes: [{ id: 'a', x: 0, y: 0, z: 0 }],
+      masses: [
+        { node: 'a', mass: 1.5 },
+        { node: 'a', mass: 0 },
+      ],
+    });
+    expect(p.plane).toBe('XY');
+    expect(p.masses).toEqual([{ node: 'a', mass: 1.5 }]);
+    expect(parseProject3D(JSON.parse(serializeProject3D(p)))).toEqual(p);
+    expect(() => parseProject3D({ kind: 'space', plane: 'XZ' })).toThrow(/Plane/);
+    expect(() =>
+      parseProject3D({
+        kind: 'space',
+        nodes: [{ id: 'a', x: 0, y: 0, z: 0 }],
+        masses: [{ node: 'a', mass: -1 }],
+      }),
+    ).toThrow(/negative/);
+    expect(() => parseProject3D({ kind: 'space', masses: [3] })).toThrow(/malformed/);
+  });
+
   it('reads per-axis effective length factors, falling back to the single older factor', () => {
     const base = {
       kind: 'space',

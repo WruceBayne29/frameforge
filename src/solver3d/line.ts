@@ -655,3 +655,149 @@ export function lineResult(el: LineElement, u: number[], segments: number): Memb
     maxAbsDeflection: absExtreme(stations, sag),
   };
 }
+
+/**
+ * Consistent mass matrix of a line member in GLOBAL axes and element DOF order (12 × 12 for
+ * a beam, 6 × 6 for a truss), from its mass per unit volume `member.mass` (0 when absent).
+ *
+ *  - Axial: linear shape functions, m/3 and m/6 with m = ρ·A·L.
+ *  - Torsion: linear shape functions with the polar moment of inertia Ip = Iy + Iz:
+ *    ρ·Ip·L/3 and ρ·Ip·L/6.
+ *  - Bending in each plane: the Hermite cubic (ρAL/420) matrix; in the x–z plane the
+ *    translation–rotation terms change sign because θy = −dw/dx (as in the stiffness).
+ *    Rotary inertia of the section is neglected (Euler–Bernoulli, as in the 2D solver).
+ *  - Truss: linear shape functions for all three translations, m/3 and m/6.
+ *
+ * End releases are handled by Guyan reduction with the transformation that static
+ * condensation applies to the stiffness (u_r = −k_rr⁻¹·k_rk·u_k), released one at a time.
+ */
+export function lineMass(el: LineElement): number[][] {
+  const { member, L, axes } = el;
+  const rho = member.mass ?? 0;
+  const m = rho * member.A * L;
+  const isTruss = member.type === 'truss';
+  const M = zeros(12, 12);
+  const set = (a: number, b: number, value: number) => {
+    M[a][b] = value;
+    M[b][a] = value;
+  };
+  for (const d of isTruss ? [0, 1, 2] : [0]) {
+    set(d, d, m / 3);
+    set(d, d + 6, m / 6);
+    set(d + 6, d + 6, m / 3);
+  }
+  if (!isTruss) {
+    const ip = rho * ((member.Iy ?? 0) + (member.Iz ?? 0)) * L;
+    set(3, 3, ip / 3);
+    set(3, 9, ip / 6);
+    set(9, 9, ip / 3);
+    const c = m / 420;
+    for (const [dofs, s] of [
+      [[1, 5, 7, 11], 1],
+      [[2, 4, 8, 10], -1],
+    ] as const) {
+      const [v1, t1, v2, t2] = dofs;
+      set(v1, v1, 156 * c);
+      set(v1, t1, s * 22 * L * c);
+      set(v1, v2, 54 * c);
+      set(v1, t2, -s * 13 * L * c);
+      set(t1, t1, 4 * L * L * c);
+      set(t1, v2, s * 13 * L * c);
+      set(t1, t2, -3 * L * L * c);
+      set(v2, v2, 156 * c);
+      set(v2, t2, -s * 22 * L * c);
+      set(t2, t2, 4 * L * L * c);
+    }
+  }
+
+  let local = M;
+  const released = el.released.flatMap((r, d) => (r ? [d] : []));
+  if (released.length > 0) {
+    // Γ expresses all twelve DOFs in terms of the retained ones; M* = Γᵀ·M·Γ.
+    const k = localStiffness3D(
+      L,
+      member.E * member.A,
+      (member.G ?? 0) * (member.J ?? 0),
+      member.E * (member.Iy ?? 0),
+      member.E * (member.Iz ?? 0),
+    );
+    const diagonal = k.map((row, i) => Math.abs(row[i]));
+    const gamma = zeros(12, 12);
+    for (let i = 0; i < 12; i++) gamma[i][i] = 1;
+    for (const r of released) {
+      const krr = k[r][r];
+      const row =
+        krr > 1e-9 * diagonal[r] ? k[r].map((v, j) => (j === r ? 0 : -v / krr)) : zeros(1, 12)[0];
+      for (let i = 0; i < 12; i++) {
+        if (i === r) continue;
+        const kir = k[i][r];
+        for (let j = 0; j < 12; j++) k[i][j] += kir * row[j];
+        k[i][r] = 0;
+      }
+      for (let j = 0; j < 12; j++) k[r][j] = 0;
+      for (let i = 0; i < 12; i++) {
+        const gir = gamma[i][r];
+        if (gir === 0) continue;
+        for (let j = 0; j < 12; j++) gamma[i][j] += gir * row[j];
+        gamma[i][r] = 0;
+      }
+    }
+    local = matMul(matMul(transpose(gamma), M), gamma);
+  }
+  const T = transformation(axes);
+  const global = matMul(matMul(transpose(T), local), T);
+  if (!isTruss) return global;
+  const keep = [0, 1, 2, 6, 7, 8];
+  return keep.map((r) => keep.map((c) => global[r][c]));
+}
+
+/**
+ * Displacements of a member along its length for given GLOBAL element displacements, from the
+ * shape functions alone (no member loads): linear u and twist, Hermite cubic v and w. At a
+ * released end the member's own rotation is used (the condensed value, from the chord), as for
+ * the stiffness. `points` + 1 values from node i to node j, in local axes.
+ */
+export function lineShape(
+  el: LineElement,
+  u: number[],
+  points: number,
+): Array<{ x: number; u: number; v: number; w: number }> {
+  const { L, axes, released, member } = el;
+  const r = [axes.x, axes.y, axes.z];
+  const local = new Array<number>(12).fill(0);
+  const perNode = el.dofsPerNode;
+  for (let node = 0; node < 2; node++) {
+    for (let block = 0; block < perNode / 3; block++) {
+      const g = perNode * node + 3 * block;
+      const vec: Vec3 = [u[g], u[g + 1], u[g + 2]];
+      for (let a = 0; a < 3; a++) local[6 * node + 3 * block + a] = dot(r[a], vec);
+    }
+  }
+  const truss = member.type === 'truss';
+  // Slopes of v (θz) and of w (−θy) at both ends, corrected at released ends.
+  const ends = (vi: number, vj: number, si: number, sj: number, relI: boolean, relJ: boolean) => {
+    const chord = (vj - vi) / L;
+    if (truss || (relI && relJ)) return [chord, chord];
+    if (relI) return [1.5 * chord - 0.5 * sj, sj];
+    if (relJ) return [si, 1.5 * chord - 0.5 * si];
+    return [si, sj];
+  };
+  const [tyi, tyj] = ends(local[1], local[7], local[5], local[11], released[5], released[11]);
+  const [tzi, tzj] = ends(local[2], local[8], -local[4], -local[10], released[4], released[10]);
+  const out: Array<{ x: number; u: number; v: number; w: number }> = [];
+  const n = Math.max(1, Math.round(points));
+  for (let k = 0; k <= n; k++) {
+    const t = k / n;
+    const h1 = 1 - 3 * t * t + 2 * t ** 3;
+    const h2 = L * (t - 2 * t * t + t ** 3);
+    const h3 = 3 * t * t - 2 * t ** 3;
+    const h4 = L * (-t * t + t ** 3);
+    out.push({
+      x: t * L,
+      u: local[0] + (local[6] - local[0]) * t,
+      v: h1 * local[1] + h2 * tyi + h3 * local[7] + h4 * tyj,
+      w: h1 * local[2] + h2 * tzi + h3 * local[8] + h4 * tzj,
+    });
+  }
+  return out;
+}

@@ -485,3 +485,38 @@ export function solidResult(el: SolidElement, u: number[]): SolidResult3D {
   for (const corner of corners) maxVonMises = Math.max(maxVonMises, corner.vonMises);
   return { id: el.solid.id, volume: el.volume, center, corners, maxVonMises };
 }
+
+/** 3-point Gauss–Legendre rule on [−1, 1]. */
+const GAUSS3: ReadonlyArray<readonly [number, number]> = [
+  [-Math.sqrt(3 / 5), 5 / 9],
+  [0, 8 / 9],
+  [Math.sqrt(3 / 5), 5 / 9],
+];
+
+/**
+ * Consistent mass matrix (24 × 24, global axes) of a hexahedron from its mass per unit volume
+ * `solid.mass`: ρ·∫NᵢNⱼ dV for each translation. 3 × 3 × 3 Gauss is exact for any trilinear
+ * geometry (NᵢNⱼ·detJ is at most of degree 4 in each natural coordinate). The incompatible
+ * modes carry no mass. `coords` are the node positions in element order.
+ */
+export function solidMass(el: SolidElement, coords: Vec3[]): number[][] {
+  const rho = el.solid.mass ?? 0;
+  const m = zeros(NU, NU);
+  if (rho === 0) return m;
+  for (const [a, wa] of GAUSS3) {
+    for (const [b, wb] of GAUSS3) {
+      for (const [c, wc] of GAUSS3) {
+        const N = shape(a, b, c);
+        const { det } = jacobian(shapeNatural(a, b, c), coords);
+        const w = wa * wb * wc * det * rho;
+        for (let i = 0; i < 8; i++) {
+          for (let j = 0; j < 8; j++) {
+            const v = N[i] * N[j] * w;
+            for (let d = 0; d < 3; d++) m[3 * i + d][3 * j + d] += v;
+          }
+        }
+      }
+    }
+  }
+  return m;
+}

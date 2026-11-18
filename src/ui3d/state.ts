@@ -12,6 +12,7 @@ import {
   DEFAULT_SECTION_3D,
   analyzeProject3D,
   designMembers3D,
+  modalProject3D,
   FIXED_SUPPORT,
   isPlane,
   PINNED_SUPPORT,
@@ -31,7 +32,7 @@ import type {
   SolidFace,
 } from '../model3d';
 import { SolverError } from '../solver3d';
-import type { AnalysisResult3D } from '../solver3d';
+import type { AnalysisResult3D, ModalResult3D } from '../solver3d';
 
 export type Tool3D = 'select' | 'node' | 'member' | 'plate' | 'support' | 'load' | 'delete';
 export type SelectionKind = 'node' | 'member' | 'plate' | 'solid' | 'load';
@@ -102,6 +103,14 @@ export interface ToolOptions3D {
   loadFace: SolidFace;
 }
 
+/** Optional analyses beyond statics, shown in the Advanced tab. */
+export interface AdvancedState3D {
+  /** Compute natural frequencies and mode shapes. */
+  modal: boolean;
+  /** Index of the mode drawn (animated) in the viewer, or null. */
+  mode: number | null;
+}
+
 export interface AppState3D {
   project: Project3D;
   past: Project3D[];
@@ -114,6 +123,7 @@ export interface AppState3D {
   view: ViewOptions3D;
   /** Latest camera request; `count` changes whenever the viewer should act on it. */
   camera: { preset: CameraPreset; count: number };
+  advanced: AdvancedState3D;
 }
 
 export type Action3D =
@@ -131,7 +141,8 @@ export type Action3D =
   | { type: 'pending'; pending: string[] }
   | { type: 'toolOptions'; options: Partial<ToolOptions3D> }
   | { type: 'view'; view: Partial<ViewOptions3D> }
-  | { type: 'camera'; preset: CameraPreset };
+  | { type: 'camera'; preset: CameraPreset }
+  | { type: 'advanced'; advanced: Partial<AdvancedState3D> };
 
 export const HISTORY_LIMIT = 100;
 
@@ -228,6 +239,7 @@ export function initialState3D(project: Project3D): AppState3D {
     toolOptions: optionsFor(project, DEFAULT_TOOL_OPTIONS_3D),
     view: viewFor(project, DEFAULT_VIEW_3D),
     camera: { preset: isPlane(project) ? 'front' : 'iso', count: 0 },
+    advanced: { modal: false, mode: null },
   };
 }
 
@@ -460,6 +472,7 @@ function reduce(state: AppState3D, action: Action3D): AppState3D {
           count: state.camera.count + 1,
         },
         toolOptions: optionsFor(action.project, state.toolOptions),
+        advanced: { ...state.advanced, mode: null },
       };
     case 'edit': {
       if (action.project === state.project) {
@@ -537,6 +550,11 @@ function reduce(state: AppState3D, action: Action3D): AppState3D {
       return { ...state, view: { ...state.view, ...action.view } };
     case 'camera':
       return { ...state, camera: { preset: action.preset, count: state.camera.count + 1 } };
+    case 'advanced': {
+      const advanced = { ...state.advanced, ...action.advanced };
+      if (!advanced.modal) advanced.mode = null;
+      return { ...state, advanced };
+    }
   }
 }
 
@@ -556,6 +574,27 @@ export interface Solution3D {
   error: SolveError3D | null;
   /** True while a large model waits to be re-analysed. */
   pending: boolean;
+}
+
+export interface Extras3D {
+  modal: ModalResult3D | null;
+  modalError: string | null;
+}
+
+const message = (e: unknown) => (e instanceof Error ? e.message : 'The calculation failed.');
+
+/** Runs the optional analyses that are switched on; never throws. */
+export function solveExtras3D(project: Project3D, advanced: AdvancedState3D): Extras3D {
+  const extras: Extras3D = { modal: null, modalError: null };
+  if (project.members.length + project.plates.length + project.solids.length === 0) return extras;
+  if (advanced.modal) {
+    try {
+      extras.modal = modalProject3D(project, 6);
+    } catch (e) {
+      extras.modalError = message(e);
+    }
+  }
+  return extras;
 }
 
 /** Rough number of equations, used to decide whether to analyse immediately. */

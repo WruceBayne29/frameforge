@@ -5,8 +5,8 @@
  *  - `PLANE_ENGINE`: the 3D solver in plane-frame mode — the path the app runs.
  */
 import { analyze, influenceLine, modalAnalysis } from '../../src/solver';
-import { analyze3d } from '../../src/solver3d';
-import { planeModel3D, planeResult2D } from './plane2d';
+import { analyze3d, modalAnalysis3d } from '../../src/solver3d';
+import { planeModal2D, planeModel3D, planeResult2D } from './plane2d';
 
 export interface Engine2D {
   name: string;
@@ -25,5 +25,6 @@ export const PLANE_ENGINE: Engine2D = {
   name: '3D plane frame',
   analyze: (model, options) => planeResult2D(model, analyze3d(planeModel3D(model), options)),
   influenceLine: notYet('influenceLine'),
-  modalAnalysis: notYet('modalAnalysis'),
+  modalAnalysis: (model, count, options) =>
+    planeModal2D(model, modalAnalysis3d(planeModel3D(model), count, options)),
 };

@@ -29,7 +29,7 @@ export type * from './types';
 export * from './edit';
 export * from './generate';
 export * from './display';
-export { analyzeProject3D, supportReactions } from './analysis';
+export { analyzeProject3D, hasOutOfPlaneLoad } from './analysis';
 export {
   checkLabel3D,
   designMembers3D,
@@ -38,3 +38,4 @@ export {
   utilisationRgb,
 } from './design';
 export type { MemberDesign3D } from './design';
+export { defaultSubdivision, modalProject3D, modeAsResult } from './modal';

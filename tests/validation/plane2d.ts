@@ -4,7 +4,7 @@
  * `planeModel3D` turns a 2D solver model into the 3D solver model a plane-frame project
  * produces: the same rules as `from2D` (frame → beam with releases about local z, local-y
  * loads flipped on members whose 3D "web up" axis is opposite to the 2D one, moments about
- * global Z) plus the plane restraint (uz, rx, ry held at every node, as `toSolverModel3D`
+ * global Z) plus the plane restraint (`restrainAll: { uz, rx, ry }`, as `toSolverModel3D`
  * does for `plane: 'XY'`). `planeResult2D` reads the 3D result back in the 2D result shape so
  * the same closed-form checks apply to both solvers.
  */
@@ -12,10 +12,12 @@ import type {
   AnalysisResult,
   Extreme,
   MemberResult,
+  ModalResult,
   Station,
   StructureModel,
 } from '../../src/solver';
 import type {
+  ModalResult3D,
   AnalysisResult3D,
   Load3D,
   Member3D,
@@ -59,28 +61,12 @@ export function planeModel3D(model: StructureModel): StructureModel3D {
     if (m.massPerLength !== undefined) member.mass = m.massPerLength / m.A;
     return member;
   });
-  const own = new Map(model.supports.map((s) => [s.node, s]));
-  const supports: Support3D[] = model.nodes.map((n) => {
-    const s = own.get(n.id);
-    const support: Support3D = {
-      node: n.id,
-      ux: !!s?.ux,
-      uy: !!s?.uy,
-      uz: true,
-      rx: true,
-      ry: true,
-      rz: !!s?.rz,
-    };
-    if (s?.settlement) {
-      support.settlement = {
-        ux: s.settlement.ux,
-        uy: s.settlement.uy,
-        rz: s.settlement.rz,
-      };
+  const supports: Support3D[] = model.supports.map((s) => {
+    const support: Support3D = { node: s.node, ux: !!s.ux, uy: !!s.uy, rz: !!s.rz };
+    if (s.settlement) {
+      support.settlement = { ux: s.settlement.ux, uy: s.settlement.uy, rz: s.settlement.rz };
     }
-    if (s?.spring) {
-      support.spring = { ux: s.spring.kx, uy: s.spring.ky, rz: s.spring.kr };
-    }
+    if (s.spring) support.spring = { ux: s.spring.kx, uy: s.spring.ky, rz: s.spring.kr };
     return support;
   });
   const loads: Load3D[] = model.loads.map((load): Load3D => {
@@ -118,6 +104,7 @@ export function planeModel3D(model: StructureModel): StructureModel3D {
     members,
     supports,
     loads,
+    restrainAll: { uz: true, rx: true, ry: true },
   };
 }
 
@@ -187,5 +174,28 @@ export function planeResult2D(model: StructureModel, r: AnalysisResult3D): Analy
     equilibrium: [r.equilibrium[0], r.equilibrium[1], r.equilibrium[5]],
     warnings: r.warnings,
     dofCount: r.dofCount,
+  };
+}
+
+/** The 3D plane-frame modal result in the 2D shape (in-plane components, 2D local y). */
+export function planeModal2D(model: StructureModel, r: ModalResult3D): ModalResult {
+  const flipped = flippedMembers(model);
+  return {
+    totalMass: r.totalMass,
+    dofCount: r.dofCount,
+    modes: r.modes.map((mode) => ({
+      omega: mode.omega,
+      frequency: mode.frequency,
+      period: mode.period,
+      displacements: Object.fromEntries(
+        Object.entries(mode.displacements).map(([id, d]) => [id, { ux: d.ux, uy: d.uy, rz: d.rz }]),
+      ),
+      members: Object.fromEntries(
+        Object.entries(mode.members).map(([id, list]) => {
+          const s = flipped.has(id) ? -1 : 1;
+          return [id, list.map((p) => ({ x: p.x, u: p.u, v: s * p.v }))];
+        }),
+      ),
+    })),
   };
 }

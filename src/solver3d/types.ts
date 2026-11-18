@@ -233,6 +233,12 @@ export type MemberLoad3D = MemberDistributedLoad3D | MemberPointLoad3D | MemberM
 export type PlateLoad3D = PlatePressure3D | PlatePointLoad3D;
 export type Load3D = NodalLoad3D | MemberLoad3D | PlateLoad3D | SolidFaceLoad3D | SelfWeight3D;
 
+/** A lumped mass at a node (same in X, Y and Z), for modal analysis. */
+export interface NodalMass3D {
+  node: string;
+  mass: number;
+}
+
 export interface StructureModel3D {
   nodes: Node3D[];
   members?: Member3D[];
@@ -240,6 +246,14 @@ export interface StructureModel3D {
   solids?: Solid3D[];
   supports: Support3D[];
   loads: Load3D[];
+  /**
+   * Degrees of freedom held at every node, e.g. `{ uz: true, rx: true, ry: true }` for a plane
+   * frame in the XY plane. They are not supports: `reactions` lists only the nodes in
+   * `supports` (with every restrained component), while `equilibrium` includes them all.
+   */
+  restrainAll?: Partial<Record<Dof6, boolean>>;
+  /** Lumped nodal masses, used by modal analysis only. */
+  masses?: NodalMass3D[];
 }
 
 export interface AnalysisOptions3D {

@@ -13,6 +13,7 @@ import {
   findNodeAt3D,
   loadTargets,
   mergeCoincidentNodes,
+  setNodeMass,
   moveNode,
   pruneOrphanNodes,
   setSupport,
@@ -440,5 +441,26 @@ describe('clean-up', () => {
     expect(merged.plates.map((pl) => pl.id)).toEqual(['P1']);
     expect(merged.solids.map((s) => s.id)).toEqual(['S1']);
     expect(merged.loads.map((l) => [l.id, loadTargets(l).ids])).toEqual([['L2', ['S1']]]);
+  });
+});
+
+describe('lumped nodal masses', () => {
+  it('sets, replaces and removes masses; deleting a node drops its mass', () => {
+    let p = emptyProject3D();
+    p = addNode(p, 0, 0, 0).project;
+    p = addNode(p, 1, 0, 0).project;
+    p = setNodeMass(p, ['N1', 'N2', 'missing'], 2);
+    expect(p.masses).toEqual([
+      { node: 'N1', mass: 2 },
+      { node: 'N2', mass: 2 },
+    ]);
+    p = setNodeMass(p, ['N1'], 5);
+    expect(p.masses).toEqual([
+      { node: 'N2', mass: 2 },
+      { node: 'N1', mass: 5 },
+    ]);
+    expect(setNodeMass(p, ['N1'], -1)).toBe(p);
+    expect(deleteNode(p, 'N1').masses).toEqual([{ node: 'N2', mass: 2 }]);
+    expect(setNodeMass(setNodeMass(p, ['N1'], 0), ['N2'], 0).masses).toBeUndefined();
   });
 });

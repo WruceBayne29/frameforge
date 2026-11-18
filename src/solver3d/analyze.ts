@@ -137,6 +137,7 @@ export function validateModel3d(model: StructureModel3D): void {
       if (s[dof] || (k ?? 0) > 0) anyRestraint = true;
     }
   }
+  if (DOFS.some((dof) => model.restrainAll?.[dof])) anyRestraint = true;
   if (!anyRestraint) {
     throw new SolverError(
       'UNSTABLE',
@@ -178,7 +179,7 @@ export function validateModel3d(model: StructureModel3D): void {
 }
 
 /** One element of any family with the global DOF index of each of its DOFs. */
-interface Placed<T extends ElementMatrices> {
+export interface Placed<T extends ElementMatrices> {
   el: T;
   dofs: number[];
 }
@@ -189,26 +190,42 @@ function groupBy<T>(map: Map<string, T[]>, key: string, item: T): void {
   else map.set(key, [item]);
 }
 
-/** Element displacement vector picked from the global one. */
-function pick(u: Float64Array, dofs: number[]): number[] {
-  return dofs.map((d) => u[d]);
+/**
+ * Everything the analyses share before the stiffness matrix is factorised: element matrices,
+ * restraints, the active free equations and the loads. Built by `prepareSystem`; used by
+ * `analyze3d`, modal analysis and influence lines.
+ */
+export interface System3D {
+  model: StructureModel3D;
+  nodes: StructureModel3D['nodes'];
+  nodeIndex: Map<string, number>;
+  ndof: number;
+  position: (id: string) => Vec3;
+  lines: Placed<LineElement>[];
+  plates: Placed<PlateElement>[];
+  solids: Placed<SolidElement>[];
+  all: Placed<ElementMatrices>[];
+  restrained: boolean[];
+  prescribed: Float64Array;
+  springs: Float64Array;
+  inactive: boolean[];
+  /** Equation number of each global DOF (−1 when restrained or inactive). */
+  equation: Int32Array;
+  dofOfEquation: number[];
+  neq: number;
+  /** Applied nodal loads and element equivalent loads, per global DOF. */
+  nodal: Float64Array;
+  equivalent: Float64Array;
+  loadScale: number;
+  warnings: string[];
 }
 
 /**
- * Linear elastic analysis of a 3D structure. Throws `SolverError` for invalid models
- * (`INVALID_MODEL`) and for structures that cannot carry their loads (`UNSTABLE`).
- *
- * Degrees of freedom without any stiffness (rotations at joints of trusses or solids, nodes
- * without elements) are left out of the equations. A mechanism that the loading does not
- * excite — for example a beam on two pins that is free to spin about its own axis — is held
- * automatically and reported in `warnings`; one that the loading does push on is an error.
+ * Validates the model, builds every element, applies the restraints and numbers the active
+ * free equations (reverse Cuthill–McKee). Throws `SolverError` like `analyze3d`.
  */
-export function analyze3d(
-  model: StructureModel3D,
-  options: AnalysisOptions3D = {},
-): AnalysisResult3D {
+export function prepareSystem(model: StructureModel3D): System3D {
   validateModel3d(model);
-  const segments = Math.max(2, Math.round(options.segments ?? 20));
   const nodes = model.nodes;
   const n = nodes.length;
   const ndof = 6 * n;
@@ -287,6 +304,11 @@ export function analyze3d(
   const restrained = new Array<boolean>(ndof).fill(false);
   const prescribed = new Float64Array(ndof);
   const springs = new Float64Array(ndof);
+  const all6 = model.restrainAll ?? {};
+  DOFS.forEach((dof, d) => {
+    if (!all6[dof]) return;
+    for (let idx = 0; idx < n; idx++) restrained[6 * idx + d] = true;
+  });
   for (const s of model.supports) {
     const base = 6 * (nodeIndex.get(s.node) as number);
     DOFS.forEach((dof, d) => {
@@ -360,39 +382,113 @@ export function analyze3d(
       dofOfEquation.push(dof);
     }
   }
-  const neq = dofOfEquation.length;
 
+  return {
+    model,
+    nodes,
+    nodeIndex,
+    ndof,
+    position,
+    lines,
+    plates,
+    solids,
+    all,
+    restrained,
+    prescribed,
+    springs,
+    inactive,
+    equation,
+    dofOfEquation,
+    neq: dofOfEquation.length,
+    nodal,
+    equivalent,
+    loadScale,
+    warnings,
+  };
+}
+
+/** The global stiffness K_ff of the free equations, springs included (not yet factorised). */
+export function assembleStiffness(sys: System3D): SkylineMatrix {
+  const { all, equation, springs, dofOfEquation, neq } = sys;
+  const K = SkylineMatrix.fromConnectivity(
+    neq,
+    all.map(({ dofs }) => dofs.map((dof) => equation[dof]).filter((e) => e >= 0)),
+  );
+  for (const { el, dofs } of all) {
+    const size = dofs.length;
+    for (let a = 0; a < size; a++) {
+      const ea = equation[dofs[a]];
+      if (ea < 0) continue;
+      const row = el.k[a];
+      for (let b = a; b < size; b++) {
+        const eb = equation[dofs[b]];
+        if (eb >= 0) K.add(ea, eb, row[b]);
+      }
+    }
+  }
+  for (let e = 0; e < neq; e++) {
+    const k = springs[dofOfEquation[e]];
+    if (k > 0) K.add(e, e, k);
+  }
+  return K;
+}
+
+/** Element displacement vector picked from the global one. */
+export function pickDofs(u: ArrayLike<number>, dofs: number[]): number[] {
+  return dofs.map((d) => u[d]);
+}
+
+/**
+ * Linear elastic analysis of a 3D structure. Throws `SolverError` for invalid models
+ * (`INVALID_MODEL`) and for structures that cannot carry their loads (`UNSTABLE`).
+ *
+ * Degrees of freedom without any stiffness (rotations at joints of trusses or solids, nodes
+ * without elements) are left out of the equations. A mechanism that the loading does not
+ * excite — for example a beam on two pins that is free to spin about its own axis — is held
+ * automatically and reported in `warnings`; one that the loading does push on is an error.
+ */
+export function analyze3d(
+  model: StructureModel3D,
+  options: AnalysisOptions3D = {},
+): AnalysisResult3D {
+  const segments = Math.max(2, Math.round(options.segments ?? 20));
+  const sys = prepareSystem(model);
+  const {
+    nodes,
+    ndof,
+    lines,
+    plates,
+    solids,
+    all,
+    restrained,
+    prescribed,
+    springs,
+    equation,
+    dofOfEquation,
+    neq,
+    nodal,
+    equivalent,
+    loadScale,
+    warnings,
+  } = sys;
   // ---- Assemble K_ff and the right-hand side F_f − K_fr·u_r, then solve --------------------
   const u = Float64Array.from(prescribed);
   let held: number[] = [];
   if (neq > 0) {
-    const K = SkylineMatrix.fromConnectivity(
-      neq,
-      all.map(({ dofs }) => dofs.map((dof) => equation[dof]).filter((e) => e >= 0)),
-    );
+    const K = assembleStiffness(sys);
     const rhs = new Float64Array(neq);
     for (let e = 0; e < neq; e++) rhs[e] = nodal[dofOfEquation[e]] + equivalent[dofOfEquation[e]];
     for (const { el, dofs } of all) {
+      if (!dofs.some((dof) => prescribed[dof] !== 0)) continue;
       const size = dofs.length;
-      const settled = dofs.some((dof) => prescribed[dof] !== 0);
       for (let a = 0; a < size; a++) {
         const ea = equation[dofs[a]];
         if (ea < 0) continue;
         const row = el.k[a];
-        for (let b = a; b < size; b++) {
-          const eb = equation[dofs[b]];
-          if (eb >= 0) K.add(ea, eb, row[b]);
-        }
-        if (settled) {
-          let sum = 0;
-          for (let b = 0; b < size; b++) sum += row[b] * prescribed[dofs[b]];
-          rhs[ea] -= sum;
-        }
+        let sum = 0;
+        for (let b = 0; b < size; b++) sum += row[b] * prescribed[dofs[b]];
+        rhs[ea] -= sum;
       }
-    }
-    for (let e = 0; e < neq; e++) {
-      const k = springs[dofOfEquation[e]];
-      if (k > 0) K.add(e, e, k);
     }
 
     held = K.factor({ onSingular: 'restrain' }).singular;
@@ -411,7 +507,7 @@ export function analyze3d(
   // ---- Nodal forces the elements need, r = Σ (k_e·u_e − f_e), and the reactions ------------
   const internal = new Float64Array(ndof);
   for (const { el, dofs } of all) {
-    const ue = pick(u, dofs);
+    const ue = pickDofs(u, dofs);
     dofs.forEach((dof, a) => {
       const row = el.k[a];
       let sum = -el.f[a];
@@ -420,19 +516,28 @@ export function analyze3d(
     });
   }
 
-  const reactions: Record<string, Reaction3D> = {};
+  // Reactions at every node with a restraint or spring; only those of the supports are
+  // reported, but all of them (including `restrainAll`) enter the equilibrium check.
+  const allReactions: Record<string, Reaction3D> = {};
   let reactionScale = 0;
-  for (const s of model.supports) {
-    if (reactions[s.node]) continue;
-    const base = 6 * (nodeIndex.get(s.node) as number);
+  nodes.forEach((node, idx) => {
+    const base = 6 * idx;
+    let any = false;
     const r = [0, 0, 0, 0, 0, 0];
     for (let d = 0; d < 6; d++) {
       const dof = base + d;
       if (restrained[dof]) r[d] = internal[dof] - nodal[dof];
       else if (springs[dof] > 0) r[d] = -springs[dof] * u[dof];
+      else continue;
+      any = true;
       reactionScale = Math.max(reactionScale, Math.abs(r[d]));
     }
-    reactions[s.node] = { fx: r[0], fy: r[1], fz: r[2], mx: r[3], my: r[4], mz: r[5] };
+    if (any) allReactions[node.id] = { fx: r[0], fy: r[1], fz: r[2], mx: r[3], my: r[4], mz: r[5] };
+  });
+  const reactions: Record<string, Reaction3D> = {};
+  for (const s of model.supports) {
+    const zero = { fx: 0, fy: 0, fz: 0, mx: 0, my: 0, mz: 0 };
+    reactions[s.node] = allReactions[s.node] ?? zero;
   }
 
   // ---- Mechanisms: equations the factorisation had to hold ---------------------------------
@@ -471,7 +576,7 @@ export function analyze3d(
     const applied = [0, 0, 0, 0, 0, 0];
     for (let d = 0; d < 6; d++) applied[d] = nodal[base + d] + equivalent[base + d];
     for (let d = 0; d < 3; d++) appliedLoad[d] += applied[d];
-    const r = reactions[node.id];
+    const r = allReactions[node.id];
     const fx = applied[0] + (r?.fx ?? 0);
     const fy = applied[1] + (r?.fy ?? 0);
     const fz = applied[2] + (r?.fz ?? 0);
@@ -485,16 +590,16 @@ export function analyze3d(
 
   const memberResults: Record<string, MemberResult3D> = {};
   for (const { el, dofs } of lines) {
-    const result = lineResult(el, pick(u, dofs), segments);
+    const result = lineResult(el, pickDofs(u, dofs), segments);
     memberResults[el.member.id] = result;
     for (const s of result.stations) {
       maxDisplacement = Math.max(maxDisplacement, Math.hypot(s.u, s.v, s.w));
     }
   }
   const plateResults: Record<string, PlateResult3D> = {};
-  for (const { el, dofs } of plates) plateResults[el.plate.id] = plateResult(el, pick(u, dofs));
+  for (const { el, dofs } of plates) plateResults[el.plate.id] = plateResult(el, pickDofs(u, dofs));
   const solidResults: Record<string, SolidResult3D> = {};
-  for (const { el, dofs } of solids) solidResults[el.solid.id] = solidResult(el, pick(u, dofs));
+  for (const { el, dofs } of solids) solidResults[el.solid.id] = solidResult(el, pickDofs(u, dofs));
 
   return {
     displacements,
