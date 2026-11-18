@@ -7,7 +7,7 @@ import {
   ProjectFormatError,
   serializeProject,
 } from './projectFile';
-import { decodeProject, encodeProject, payloadFromHash, shareUrl } from './share';
+import { decodeJson, decodeProject, encodeJson, payloadFromHash } from './share';
 
 describe('project files', () => {
   it('round-trips every example', () => {
@@ -114,16 +114,15 @@ describe('project files', () => {
   });
 });
 
-describe('share links', () => {
-  it('round-trips a project through a URL', async () => {
+describe('former 2D share links (#m=)', () => {
+  it('decode to the project they were made from', async () => {
     const project = EXAMPLES.find((e) => e.id === 'transmission-tower')?.build() ?? emptyProject();
-    const url = await shareUrl(project, 'https://example.org/frameforge/?x=1#old');
-    expect(url.startsWith('https://example.org/frameforge/?x=1#m=1.')).toBe(true);
-    // Compression keeps even the largest example comfortably inside URL length limits.
-    expect(url.length).toBeLessThan(4000);
-    const payload = payloadFromHash(new URL(url).hash);
+    // The 2D app encoded the project JSON exactly like 3D links do.
+    const hash = `#m=${await encodeJson(JSON.parse(JSON.stringify(project)))}`;
+    const payload = payloadFromHash(hash);
     expect(payload).not.toBeNull();
     expect(await decodeProject(payload as string)).toEqual(project);
+    expect(await decodeJson(payload as string)).toMatchObject({ name: project.name });
   });
 
   it('reads uncompressed payloads', async () => {
@@ -140,6 +139,5 @@ describe('share links', () => {
     await expect(decodeProject(`0.${btoa('[1,2]')}`)).rejects.toThrow(/not a FrameForge project/);
     expect(payloadFromHash('#other')).toBeNull();
     expect(payloadFromHash('m=0.abc')).toBe('0.abc');
-    expect((await encodeProject(emptyProject())).startsWith('1.')).toBe(true);
   });
 });

@@ -15,21 +15,25 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc -b",
     "check": "npm run lint && npm run test && npm run build",
-    "validation": "WRITE_VALIDATION=1 vitest run tests/validation",
-    "e2e": "node scripts/e2e.mjs",
+    "validation": "WRITE_VALIDATION=1 vitest run tests/validation/validation.test.ts",
+    "validation3d": "WRITE_VALIDATION=1 vitest run tests/validation/validation3d.test.ts",
+    "e2e": "node scripts/e2e3d.mjs",
+    "e2e3d": "node scripts/e2e3d.mjs",
     "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^10.15.0",
@@ -45,6 +49,6 @@
     "vite": "^8.3.6",
     "vitest": "^4.1.12"
   },
-  "description": "Browser-based 2D structural analysis (direct stiffness method) with IS 800:2007 steel design checks",
+  "description": "Browser-based 3D structural analysis: space frames, trusses, plates and solids, a plane-frame mode for 2D problems, IS 800:2007 steel checks, modal analysis, influence lines and PDF reports (direct stiffness / finite element method)",
   "license": "MIT"
 }

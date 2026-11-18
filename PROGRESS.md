@@ -1,7 +1,117 @@
 # Progress
 
-**Status:** COMPLETE — all eight milestones, final deliverables, self-review and two of the three
-stretch features are done and deployed at https://wrucebayne29.github.io/frameforge/
+## Current work: one 3D app (branch `feat/3d-only`)
+
+Goal: remove the 2D workspace without losing any capability — every 2D feature must work in
+the 3D workspace. Branched from `feat/3d-space-structures` (PR #1 was not merged). Phases,
+each committed and pushed when `npm run check`, `npm run format:check` and `npm run coverage`
+pass:
+
+- [x] **Phase 1 — plane frame mode.** `Project3D.plane = 'XY'`: the solver model holds uz, rx,
+  ry at every node (`toSolverModel3D`), `analyzeProject3D` hides those restraints from the
+  reactions; orthographic front view locked; tools draw on z = 0 with a snap grid; node
+  dragging with live re-analysis (select tool); N / Vy / Mz diagrams; in-plane columns in
+  tables and results; 2D support kinds; toggle in Properties (no selection) and "New → Plane
+  frame". `from2D` now produces plane-mode projects (steel 7.85 t/m³ × g, so modal mass
+  matches 2D). The nine 2D examples are a "2D frames & trusses" category of the 3D picker.
+  Tests: `tests/validation/plane.test.ts` (every 2D example and every model analysed by a 2D
+  validation case agree with the 2D solver at every station to 1e-8 relative; the two
+  axially-rigid portal cases get a conditioning-scaled tolerance, see DECISIONS 36);
+  `tests/validation/engine.ts` lets each 2D validation case run on the 2D solver or on the
+  plane-frame path (`plane2d.ts`), and the validation test runs both.
+- [x] **Phase 2 — IS 800 design check in 3D.** `checkMember` takes optional `momentY`,
+  `shearZ`, `torsion`, `cmy`: minor-axis bending (cl. 8.2.1.2, Zpy from the idealised geometry
+  — `plasticModulusMinor`), shear across the flanges (Av = 2·bf·tf) with the high-shear
+  reduction, biaxial section check (cl. 9.3.1.1 simplified), both member-buckling equations of
+  cl. 9.3.2.2, tension + biaxial bending; torsion is reported, not checked. With no minor-axis
+  action the result is identical to the 2D check (tested with `toEqual`). `model3d/design.ts`
+  (`designMembers3D`: Mz → major, My → minor; project `design.kz` / `ky` plus member `kz` / `ky`
+  overrides, kLT = ky; custom sections skipped). UI: Design tab (settings, summary, per-member
+  breakdown), utilisation colours (chip + U key), K overrides in member Properties.
+  `tests/validation/design.test.ts`: plane-mode design of every 2D example matches the 2D app
+  (same members, class, checks, governing check; ratios to 1e-9).
+- [x] **Phase 3 — modal analysis in 3D.** `prepareSystem` / `assembleStiffness` split out of
+  `analyze3d` (shared by statics, modal, influence lines); `restrainAll` in the solver model
+  carries the plane restraint (also to subdivision nodes). Consistent mass: `lineMass` (beam
+  12×12 with torsional inertia ρ(Iy+Iz)L, releases by Guyan reduction; truss), `plateMass`
+  (translations + rotary inertia ρt³/12), `solidMass` (3×3×3 Gauss). `eigen.ts`: subspace
+  iteration on the skyline factorisation, M-orthonormalised Rayleigh–Ritz, subspace widened
+  past clusters of close eigenvalues. `modalAnalysis3d` (subdivision like 2D `refineModel`,
+  nodal masses, effective mass fractions, zero-frequency mechanism check). Project level:
+  `modalProject3D`, `Project3D.masses` (node Properties), material density / g. UI: Advanced
+  tab (frequencies table, mass fractions), animated mode shapes. Tests: plane-mode modal of
+  every 2D example = 2D app (frequencies 1e-8), V23/V24 through plane mode, closed forms in
+  `solver3d/modal.test.ts`, VALIDATION_3D cases M01–M05. Found and fixed: the "Simply
+  supported slab" example could spin in its own plane (wrong in-plane support direction).
+- [x] **Phase 4 — influence lines in 3D.** `solver3d/influence.ts` (`influenceLine3d`): one
+  factorisation, one solve per load position; targets: reactions (6 components), nodal
+  displacements, member N / Vy / Vz / T / My / Mz at a section (`lineForcesAt`); load
+  default −Y, any member-load direction; left limit at the section like 2D. Project level:
+  `influenceProject3D`, `defaultLoadPath3D` (near-horizontal members = beams in plane mode).
+  UI: Advanced tab section (response, node / member + section, component; ordinates table),
+  the line drawn above its path with max / min labels and a target marker. Tests: plane mode
+  = 2D app on every example (supports, mid-member N/V/M, node uy; 1e-8), V25/V26 through
+  plane mode, closed forms + "every ordinate equals a static analysis" in
+  `solver3d/influence.test.ts`, VALIDATION_3D I01–I02. All 26 2D validation cases now run on
+  the plane-frame engine as well as the 2D reference.
+- [x] **Phase 5 — PDF report for Project3D.** `src/io/report3d.ts` (`buildReport3D`, lazy
+  chunk loaded by the "PDF report" button in the 3D top bar): inputs (nodes, supports,
+  materials, members, plates, solids, custom sections, loads, masses), results (equilibrium,
+  reactions, member extremes and end forces, displacements, plate / solid stress summaries,
+  warnings), diagrams, IS 800 design, natural frequencies. Figures are jsPDF vector
+  projections (iso, front, top) with member diagrams, deflected and mode shapes; plates and
+  solids as wireframes; raster capture of the live viewer added for plate / solid models.
+  Plane mode: one front view per figure with the 2D titles, symbols and N / V / M diagrams.
+  Tables longer than 400 rows are cut with a note. Tests in `report3d.test.ts` (Node).
+- [x] **Phase 6 — the 2D workspace is gone.** Deleted `src/ui/` (storage, theme, toast,
+  format, base styles and the three field components moved into `src/ui3d/`, 2D-only CSS
+  pruned), `src/Root.tsx`, `src/workspace.ts`, `scripts/e2e.mjs` and the 2D PDF report
+  (`report3d.ts` is now `src/io/report.ts`). `src/main.tsx` renders `App3D` directly; only the
+  PDF report is lazy. Migration (`src/io/migrate.ts`, tested): 2D `.json` files and `#m=`
+  links open converted to plane frames with a toast; the 2D autosave is converted once on
+  first load (the model of the last-used workspace opens, the other is one Undo away) and the
+  legacy keys are removed. `src/solver3d` owns `SolverError` and the dense helpers; the 2D
+  solver and `src/model` (types, `toSolverModel`, `designMembers`) remain only for `from2D`
+  and as the test reference. Dead code removed (2D model edit/display/ids, `shareUrl`,
+  `encodeProject`, unused exports). VALIDATION.md now publishes the plane-frame 3D results.
+  Also: constant axial force in plane trusses is drawn on the member (as in 2D); index.html
+  and package.json descriptions; help text.
+- [x] **Phase 7 — verified, documented, PR opened (not merged).** `scripts/e2e3d.mjs` (`npm run
+  e2e`): 142 checks against `npm run build && npx vite preview`, all passing — start-up, all 18
+  examples, result views, contours, tools, plane mode (locked camera, N/Vy/Mz, in-plane tables,
+  node dragging with live results and one-step undo, 2D supports, New → Plane frame, toggle),
+  IS 800 tab and colours, modal animation, influence lines, PDF downloads, files, share links,
+  old 2D file / `#m=` link / autosave migration, themes, a 5,600-equation mesh, phone width, no
+  console errors. It found two bugs, both fixed (stale influence-line target after loading a
+  model; start-up toasts lost before the toast area mounted). `scripts/screenshots.mjs`
+  regenerates every README image and the hero GIF from the 3D app. Docs: README (one app),
+  THEORY.md (§12.7 biaxial IS 800) and THEORY_3D.md (§7 plane mode, §8 mass, §9 eigen solver,
+  §10 influence lines), DECISIONS 36–51, CONTRIBUTING, CV_BULLETS, LINKEDIN_POST, issue
+  templates, index.html, package.json.
+
+## If you resume
+
+- Everything above is committed and pushed on `feat/3d-only`; the PR into `main` is open and
+  must not be merged by an agent. `npm run check`, `npm run format:check`, `npm run coverage`
+  and `npm run e2e -- http://localhost:4179/` (after `npm run build && npx vite preview --port
+  4179`) all pass.
+- Ideas, in order: load combinations (IS 875), angle and hollow sections, settlements and
+  springs in the editor, P-Δ / linear buckling, solving in a Web Worker.
+
+Dev server for this branch: `.claude/worktrees/3d-only` is a git worktree of the main
+checkout; the preview config `frameforge-3d-only` (port 5199) runs it.
+
+**Status:** all seven phases are done. Tests: 1,363 (35 files), solver coverage 99.5 %
+statements; 26 plane-frame problems within 0.1 % on the 3D solver; 27 3D problems within their
+stated tolerances; 142 / 142 end-to-end checks.
+
+## Earlier status
+
+_The record of the original build, kept for history; the 3D items it lists as missing are done above._
+
+**Status:** COMPLETE — all eight milestones, final deliverables, self-review and all three
+stretch features are done. The 2D app is deployed at https://wrucebayne29.github.io/frameforge/;
+the 3D workspace is complete on the `feat/3d-space-structures` branch (not yet merged or deployed).
 
 ## Done
 - Repo scaffold: Vite + React + TS 6, Vitest, ESLint, Prettier.
@@ -31,13 +141,19 @@ stretch features are done and deployed at https://wrucebayne29.github.io/framefo
 - Stretch: modal analysis (`src/solver/modal.ts`, animated mode shapes) and influence lines
   (`src/solver/influence.ts`), both validated (V23–V26) and exposed in the Advanced tab.
 
-## Not done
-- **3D space frames** (third stretch item). It needs a new 6-DOF element, a 3D viewer and a new
-  editor, which is a second project rather than an increment; it is on the README roadmap.
-
-## If you resume
-- Nothing is in progress. `npm run check` and `npm run e2e` should both pass.
-- Ideas, in order: load combinations (IS 875), angle sections for trusses, self-weight loads.
+- **3D workspace** (branch `feat/3d-space-structures`, decisions 22–35):
+  - `src/solver3d/`: 6-DOF truss, 12-DOF beam with end releases, 4-node flat shell (MITC4 +
+    QM6 + drilling), 8-node incompatible-mode hexahedron, member / plate / solid-face loads and
+    self-weight, settlements and springs, skyline LDLᵀ with RCM ordering, mechanism handling.
+    99.9 % statement coverage.
+  - `src/model3d/` (units, edit operations, frame / plate-mesh / solid-block generators,
+    conversion from 2D), `src/io/projectFile3d.ts` + `share3d.ts`, `src/examples3d/` (9 examples),
+    `src/ui3d/` (lazy-loaded three.js workspace, 2D | 3D switch), `scripts/e2e3d.mjs`.
+  - 3D validation suite: 20 problems, 103 quantities, each within its stated tolerance →
+    `VALIDATION_3D.md` (`npm run validation3d`).
+  - Docs: README 3D section, docs/THEORY_3D.md, DECISIONS 22–35.
+- Test suite: 1056 tests (27 files), coverage 99.7 % of statements over both solvers and the
+  design code.
 
 ## Milestone checklist
 - [x] 1. Solver core + validation suite
@@ -50,4 +166,6 @@ stretch features are done and deployed at https://wrucebayne29.github.io/framefo
 - [x] 8. Polish
 - [x] Final docs & deliverables
 - [x] Self-review on live site
-- [x] Stretch features: modal analysis, influence lines (3D space frames not done)
+- [x] Stretch features: modal analysis, influence lines
+- [x] 3D space structures: truss, beam, plate and solid elements, workspace, validation
+- [x] One 3D app: plane-frame mode, 3D IS 800 / modal / influence lines / PDF, 2D workspace removed

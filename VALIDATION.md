@@ -1,10 +1,13 @@
-# Validation
+# Validation — plane frames
 
-FrameForge's solver is checked against **26 textbook problems** (122 individual quantities) with closed-form answers. Every quantity must match to within **0.1 %**; in practice the error is at the level of floating-point round-off.
+FrameForge is checked against **26 textbook problems** (122 individual quantities) on plane frames, beams and trusses with closed-form answers. Every quantity must match to within **0.1 %**; in practice the error is at the level of floating-point round-off.
+
+The results below are those of the solver the app runs: each problem is converted to a plane-frame 3D model (the conversion `from2D` applies to 2D projects, with the plane restraint uz = rx = ry = 0 at every node) and solved by the 3D solver (`analyze3d`, `modalAnalysis3d`, `influenceLine3d`). The same problems also run on the original 2D solver, kept in the repository as a reference; the test suite requires both to pass, and `tests/validation/plane.test.ts` requires the two to agree at every station to 1e-8.
 
 The table below is generated from the test suite itself (`tests/validation/cases.ts`), so it
 cannot drift from the code. Regenerate it with `npm run validation`. The suite runs in CI on
-every push.
+every push. Space structures, plates and solids are validated in
+[VALIDATION_3D.md](VALIDATION_3D.md).
 
 Units: kN, m, kN·m, rad. E = 200 GPa, I = 1.2×10⁻⁴ m⁴, A = 8×10⁻³ m² unless a case says otherwise.
 Where the classical solution neglects axial deformation (portal frames), a very large area is used.

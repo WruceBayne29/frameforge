@@ -36,10 +36,6 @@ const RESTRAINTS: Record<SupportKind, { ux: boolean; uy: boolean; rz: boolean }>
   rollerY: { ux: true, uy: false, rz: false },
 };
 
-export function supportRestraints(kind: SupportKind): { ux: boolean; uy: boolean; rz: boolean } {
-  return RESTRAINTS[kind];
-}
-
 /** Section properties used when a member refers to a section that no longer exists. */
 const FALLBACK: SectionProps = { A: 50, I: 5000, rolled: false };
 

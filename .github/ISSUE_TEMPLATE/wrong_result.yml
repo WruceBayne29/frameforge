@@ -9,8 +9,8 @@ body:
         A wrong answer is the most serious kind of bug in FrameForge, so thank you for reporting it.
 
         Before you file, please check:
-        - the sign conventions and units in section 2 of [docs/THEORY.md](https://github.com/WruceBayne29/frameforge/blob/main/docs/THEORY.md);
-        - the assumptions in section 14 (no shear deformation, no P-Delta effects, 2D only).
+        - the sign conventions and units in sections 1–2 of [docs/THEORY_3D.md](https://github.com/WruceBayne29/frameforge/blob/main/docs/THEORY_3D.md) (plane frames: section 2 of [docs/THEORY.md](https://github.com/WruceBayne29/frameforge/blob/main/docs/THEORY.md));
+        - the limitations in section 11 of THEORY_3D.md (linear elastic, no shear deformation in beams, no P-Delta effects, torsion not design-checked).
   - type: textarea
     id: model
     attributes:
@@ -30,9 +30,12 @@ body:
         - Support reaction
         - Axial force
         - Shear force
-        - Bending moment
+        - Bending moment or torque
         - Deflected shape along a member
+        - Plate or solid stress
         - Design check or utilisation ratio
+        - Natural frequency or mode shape
+        - Influence line
         - Other
     validations:
       required: true
@@ -40,8 +43,8 @@ body:
     id: location
     attributes:
       label: Where in the model?
-      description: The node or member, and the position along the member if relevant.
-      placeholder: Member 3 at midspan, node 2 vertical reaction, ...
+      description: The node, member, plate or solid, and the position or component if relevant (3D model or plane frame?).
+      placeholder: Member M3 at midspan (Mz), node N2 vertical reaction, plate P14 top von Mises, ...
     validations:
       required: true
   - type: input

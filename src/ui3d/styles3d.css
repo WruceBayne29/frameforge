@@ -1,0 +1,367 @@
+/* ---------- 3D workspace (adds to styles.css) ---------- */
+
+:root {
+  --truss-3d: #0d9488;
+  --plate-3d: #93c5fd;
+  --plate-edge-3d: #1d4ed8;
+  --solid-3d: #cbd5e1;
+  --solid-edge-3d: #334155;
+  --hover-3d: #f59e0b;
+  --torsion-3d: #a21caf;
+  --axis-x-3d: #dc2626;
+  --axis-y-3d: #16a34a;
+  --axis-z-3d: #2563eb;
+}
+
+:root[data-theme='dark'] {
+  --truss-3d: #2dd4bf;
+  --plate-3d: #3b82f6;
+  --plate-edge-3d: #93c5fd;
+  --solid-3d: #64748b;
+  --solid-edge-3d: #cbd5e1;
+  --hover-3d: #fbbf24;
+  --torsion-3d: #e879f9;
+  --axis-x-3d: #f87171;
+  --axis-y-3d: #4ade80;
+  --axis-z-3d: #60a5fa;
+}
+
+.viewer3d {
+  position: absolute;
+  inset: 0;
+  background: var(--canvas);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.viewer3d canvas {
+  display: block;
+  outline: none;
+}
+
+.viewer3d.cursor-crosshair canvas {
+  cursor: crosshair;
+}
+
+.viewer3d.cursor-pointer canvas {
+  cursor: pointer;
+}
+
+.label3d-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.lbl3d {
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  color: var(--muted);
+  text-shadow:
+    0 0 3px var(--canvas),
+    0 0 2px var(--canvas),
+    0 0 1px var(--canvas);
+}
+
+.lbl3d.node {
+  transform: translate(6px, -6px);
+}
+
+.lbl3d.member,
+.lbl3d.plate,
+.lbl3d.solid {
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.lbl3d.load {
+  color: var(--load);
+  font-weight: 700;
+}
+
+.lbl3d.reaction {
+  color: var(--reaction);
+  font-weight: 700;
+}
+
+.lbl3d.diagram {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.viewer-presets {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.plane-badge {
+  align-self: center;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.viewer-presets button {
+  min-height: 26px;
+  padding: 3px 8px;
+  font-weight: 600;
+}
+
+.legend3d {
+  position: absolute;
+  right: 10px;
+  top: 52px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(6px);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  max-width: 190px;
+}
+
+.legend3d strong {
+  font-size: 11.5px;
+}
+
+.legend3d-body {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.legend3d-bar {
+  width: 12px;
+  min-height: 120px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.legend3d-ticks {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--text);
+}
+
+.legend3d .muted {
+  font-size: 11px;
+}
+
+.diagram-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diagram-key i {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.viewbar select.contour-picker {
+  min-height: 28px;
+  padding: 2px 6px;
+  max-width: 220px;
+}
+
+.viewbar .segmented button {
+  padding: 4px 9px;
+}
+
+.coord-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.coord-row input {
+  width: 100%;
+  min-width: 0;
+}
+
+.dof-grid {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 4px 10px;
+  font-size: 12px;
+}
+
+.dof-grid label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 4px !important;
+  display: inline-flex;
+  color: var(--text) !important;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px 8px;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.form-grid input,
+.form-grid select {
+  width: 100%;
+  min-width: 0;
+  color: var(--text);
+}
+
+.form-grid .span-all {
+  grid-column: 1 / -1;
+}
+
+.gen-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gen-card h4 {
+  margin: 0 !important;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pager button {
+  min-height: 24px;
+  padding: 0 8px;
+}
+
+table.data td.ids {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+table.data.compact td,
+table.data.compact th {
+  padding: 3px 4px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.pending-chip {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ok-note {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--reaction) 14%, transparent);
+  color: var(--reaction);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 860px) {
+  .viewer-presets {
+    top: 6px;
+    right: 6px;
+  }
+  .viewer-presets button {
+    padding: 2px 6px;
+  }
+  .legend3d {
+    top: 46px;
+    right: 6px;
+    padding: 6px 8px;
+  }
+  .legend3d-bar {
+    min-height: 80px;
+  }
+  .tool-options .coord-row input {
+    width: 64px;
+  }
+}
+
+/* The analysis error must not block clicks on the model being built underneath. */
+.app3d .error-banner {
+  pointer-events: none;
+  bottom: 56px;
+}
+
+.panel-body .segmented.wide button {
+  font-size: 11.5px;
+  padding: 4px 2px;
+  min-width: 0;
+}
+
+/* The panel body scrolls as a whole; its children must not shrink to fit it. */
+.panel-body > * {
+  flex-shrink: 0;
+}
+
+.design-breakdown {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.design-breakdown h4 {
+  margin: 0 0 4px;
+}
+
+/* Six panel tabs: sized to their text, wrapping onto a second row when the panel is narrow. */
+.app3d .tabs {
+  flex-wrap: wrap;
+}
+
+.app3d .tabs button {
+  flex: 1 0 auto;
+  padding: 5px 6px;
+  font-size: 13px;
+}
+
+.app3d .tabs button.panel-toggle {
+  flex: none;
+}
+
+.app3d {
+  overflow: hidden;
+}

@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { VALIDATION_CASES } from './cases';
 import type { ValidationCheck } from './cases';
+import { ENGINE_2D, PLANE_ENGINE } from './engine';
 
 const TOLERANCE = 1e-3; // 0.1 %
 
@@ -19,6 +20,9 @@ function fmt(v: number): string {
 }
 
 const rows: string[] = [];
+
+const scaleOf = (checks: ValidationCheck[]) =>
+  Math.max(...checks.map((c) => Math.abs(c.expected)), 1e-12);
 const summary: string[] = [];
 
 describe('validation suite: textbook problems vs closed-form answers', () => {
@@ -28,8 +32,10 @@ describe('validation suite: textbook problems vs closed-form answers', () => {
 
   for (const vcase of VALIDATION_CASES) {
     describe(`${vcase.id} ${vcase.title}`, () => {
-      const checks = vcase.run();
-      const scale = Math.max(...checks.map((c) => Math.abs(c.expected)), 1e-12);
+      // The published table describes the solver the app runs: the 3D solver in plane mode.
+      const published = PLANE_ENGINE;
+      const checks = vcase.run(published);
+      const scale = scaleOf(checks);
       rows.push(`\n### ${vcase.id} — ${vcase.title}\n`);
       rows.push(`Reference: ${vcase.reference}\n`);
       rows.push('| Quantity | Closed form | Expected | FrameForge | Error |');
@@ -48,31 +54,47 @@ describe('validation suite: textbook problems vs closed-form answers', () => {
         rows.push(
           `| ${c.quantity} | ${c.formula} | ${fmt(c.expected)} ${c.unit} | ${fmt(c.actual)} ${c.unit} | ${(err * 100).toFixed(4)} % |`,
         );
-        it(`${c.quantity} = ${c.formula}`, () => {
-          expect(err).toBeLessThan(TOLERANCE);
-        });
+      }
+      for (const engine of [PLANE_ENGINE, ENGINE_2D]) {
+        const results = engine === published ? checks : vcase.run(engine);
+        const s = scaleOf(results);
+        for (const c of results) {
+          it(`${engine.name}: ${c.quantity} = ${c.formula}`, () => {
+            expect(relativeError(c, s)).toBeLessThan(TOLERANCE);
+          });
+        }
       }
     });
   }
 
   it('writes VALIDATION.md when WRITE_VALIDATION=1', () => {
     if (process.env.WRITE_VALIDATION !== '1') return;
-    const total = VALIDATION_CASES.reduce((n, c) => n + c.run().length, 0);
+    const total = VALIDATION_CASES.reduce((n, c) => n + c.run(ENGINE_2D).length, 0);
     const header = [
-      '# Validation',
+      '# Validation — plane frames',
       '',
-      `FrameForge's solver is checked against **${VALIDATION_CASES.length} textbook problems** ` +
-        `(${total} individual quantities) with closed-form answers. Every quantity must match ` +
-        'to within **0.1 %**; in practice the error is at the level of floating-point round-off.',
+      `FrameForge is checked against **${VALIDATION_CASES.length} textbook problems** ` +
+        `(${total} individual quantities) on plane frames, beams and trusses with closed-form ` +
+        'answers. Every quantity must match to within **0.1 %**; in practice the error is at the ' +
+        'level of floating-point round-off.',
+      '',
+      'The results below are those of the solver the app runs: each problem is converted to a ' +
+        'plane-frame 3D model (the conversion `from2D` applies to 2D projects, with the plane ' +
+        'restraint uz = rx = ry = 0 at every node) and solved by the 3D solver (`analyze3d`, ' +
+        '`modalAnalysis3d`, `influenceLine3d`). The same problems also run on the original 2D ' +
+        'solver, kept in the repository as a reference; the test suite requires both to pass, ' +
+        'and `tests/validation/plane.test.ts` requires the two to agree at every station to 1e-8.',
       '',
       'The table below is generated from the test suite itself (`tests/validation/cases.ts`), so it',
       'cannot drift from the code. Regenerate it with `npm run validation`. The suite runs in CI on',
-      'every push.',
+      'every push. Space structures, plates and solids are validated in',
+      '[VALIDATION_3D.md](VALIDATION_3D.md).',
       '',
       'Units: kN, m, kN·m, rad. E = 200 GPa, I = 1.2×10⁻⁴ m⁴, A = 8×10⁻³ m² unless a case says otherwise.',
       'Where the classical solution neglects axial deformation (portal frames), a very large area is used.',
       'Deflections are positive upward, so downward deflections are negative.',
     ];
+
     const table = [
       '| # | Problem | Closed-form checks | Quantities | Max error |',
       '| --- | --- | --- | ---: | ---: |',

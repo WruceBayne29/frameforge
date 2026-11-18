@@ -1,12 +1,12 @@
 /**
- * Shareable URLs: the whole project is stored in the URL fragment (`#m=…`), so sharing needs
- * no server and the model never leaves the browser. Payload: `1.` + base64url(deflate(JSON))
- * where the browser supports CompressionStream, otherwise `0.` + base64url(JSON).
+ * Share-link payloads: the whole project is stored in the URL fragment, so sharing needs no
+ * server and the model never leaves the browser. Payload: `1.` + base64url(deflate(JSON))
+ * where the browser supports CompressionStream, otherwise `0.` + base64url(JSON). 3D links
+ * use the key `s` (`share3d.ts`); links of the former 2D workspace (`#m=…`) are still read,
+ * and opened as plane frames (`migrate.ts`).
  */
 import type { Project } from '../model/types';
 import { parseProject, ProjectFormatError } from './projectFile';
-
-const PARAM = 'm';
 
 function toBase64Url(bytes: Uint8Array): string {
   let binary = '';
@@ -29,20 +29,20 @@ async function pipe(bytes: Uint8Array, stream: GenericTransformStream): Promise<
   return new Uint8Array(await new Response(source).arrayBuffer());
 }
 
-/** Drops fields that only bloat the URL. */
-function compact(project: Project): unknown {
-  return JSON.parse(JSON.stringify(project)) as unknown;
-}
-
-export async function encodeProject(project: Project): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(compact(project)));
+/**
+ * Encodes any JSON value as a share payload (`1.` + deflated or `0.` + plain, base64url).
+ * Shared by the 2D and 3D share links.
+ */
+export async function encodeJson(value: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
   if (typeof CompressionStream === 'function') {
     return `1.${toBase64Url(await pipe(bytes, new CompressionStream('deflate-raw')))}`;
   }
   return `0.${toBase64Url(bytes)}`;
 }
 
-export async function decodeProject(payload: string): Promise<Project> {
+/** Decodes a share payload back into the JSON value, which is still untrusted data. */
+export async function decodeJson(payload: string): Promise<unknown> {
   const dot = payload.indexOf('.');
   const mode = payload.slice(0, dot);
   const body = payload.slice(dot + 1);
@@ -57,21 +57,18 @@ export async function decodeProject(payload: string): Promise<Project> {
       }
       bytes = await pipe(bytes, new DecompressionStream('deflate-raw'));
     }
-    return parseProject(JSON.parse(new TextDecoder().decode(bytes)));
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
   } catch (e) {
     if (e instanceof ProjectFormatError) throw e;
     throw new ProjectFormatError('This link is damaged or incomplete.');
   }
 }
 
-/** Builds a full share URL for the given page URL. */
-export async function shareUrl(project: Project, pageUrl: string): Promise<string> {
-  const url = new URL(pageUrl);
-  url.hash = `${PARAM}=${await encodeProject(project)}`;
-  return url.toString();
+export async function decodeProject(payload: string): Promise<Project> {
+  return parseProject(await decodeJson(payload));
 }
 
-/** Extracts the model payload from a URL fragment, if there is one. */
+/** Extracts a former 2D (`#m=`) model payload from a URL fragment, if there is one. */
 export function payloadFromHash(hash: string): string | null {
   const match = /^#?m=(.+)$/.exec(hash);
   return match ? match[1] : null;

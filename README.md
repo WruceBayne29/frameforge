@@ -4,8 +4,10 @@
 
 **A free, lightweight structural analysis tool that runs entirely in your browser.**
 
-Draw a truss, beam or frame, and get deflections, reactions, force diagrams and
-IS 800:2007 steel checks instantly — no install, no licence, no backend.
+Model a space frame, a truss, a slab or a solid footing in 3D — or switch to plane-frame mode
+for 2D beams, frames and trusses — and get deflections, reactions, force diagrams, IS 800:2007
+steel checks, natural frequencies, influence lines and a PDF calculation report instantly.
+No install, no licence, no backend.
 
 ### [▶ Open the live demo](https://wrucebayne29.github.io/frameforge/)
 
@@ -13,9 +15,10 @@ IS 800:2007 steel checks instantly — no install, no licence, no backend.
 [![Deploy](https://github.com/WruceBayne29/frameforge/actions/workflows/deploy.yml/badge.svg)](https://github.com/WruceBayne29/frameforge/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Validation](https://img.shields.io/badge/validation-26%20textbook%20problems-success)
+![Plane-frame validation](https://img.shields.io/badge/plane--frame%20validation-26%20problems-success)
+![3D validation](https://img.shields.io/badge/3D%20validation-27%20problems-success)
 
-![FrameForge: dragging a joint of a portal frame while the bending moment diagram updates live](docs/screenshots/hero.gif)
+![FrameForge: dragging a joint of a portal frame in plane-frame mode while the bending moment diagram updates live](docs/screenshots/hero.gif)
 
 </div>
 
@@ -26,81 +29,119 @@ engineering student you mostly need to check a homework frame, see what a hinge 
 moment diagram, or find out why your truss is a mechanism. FrameForge does exactly that, in a
 browser tab, with a solver you can read.
 
-The solver is written from scratch in TypeScript using the **direct stiffness method** — no FEM
-libraries — and is checked against 26 textbook problems to within 0.1 %.
+The solver is written from scratch in TypeScript — the **direct stiffness method** for line
+members and the finite element method for plates and solids, no FEM libraries — and is checked
+against 26 textbook plane-frame problems to within 0.1 % and 27 more 3D problems: closed-form
+answers for space trusses, space frames, vibration and influence lines, and published plate,
+shell and elasticity benchmarks.
 
 ## Features
 
-**Analysis**
+**Elements and loads**
 
-- 2D frame (axial + shear + bending) and pin-ended truss elements
-- Fixed, pinned and roller supports; member end releases (internal hinges)
-- Point loads, moments, uniform and trapezoidal loads over all or part of a member, in local or
-  global axes
-- Nodal displacements, support reactions, member end forces
-- Exact axial force, shear force and bending moment diagrams, with maxima located at points of
-  zero shear, and the exact deflected shape along every member
-- Unstable structures are caught and explained ("mechanism detected at node N4, vertical
-  translation") instead of returning garbage
+- Truss (6 DOF), beam (12 DOF, Euler–Bernoulli, biaxial bending and torsion), 4-node flat-shell
+  plate and 8-node solid elements, all in one model
+- Any combination of the six restraints at a support; member end releases (hinges) for any of
+  the six end forces
+- Nodal forces and moments; uniform and trapezoidal loads over all or part of a member, point
+  loads and point moments, in local or global axes; plate pressures and point loads; solid face
+  loads; self-weight from the material densities
 
-**Editor**
+**Plane frames (2D)**
 
-- Click to add nodes, members, supports and loads, with snap-to-grid
-- Click a member to split it — its loads are carried over to both halves
-- Drag a node and watch the results update live
-- Undo / redo for everything, including loading a new model
-- Edit-by-table for nodes, members and loads as an alternative to drawing
+- A plane-frame mode for flat beams, frames and trusses: the model lies in the XY plane and only
+  moves in it, the view locks to an orthographic front view, nodes snap to a grid on z = 0 and can
+  be dragged with live re-analysis, and the tables show only the in-plane components
+- Fixed, pinned and roller supports as in a 2D program; N, V and M diagrams
+- Nine ready-made 2D structures (portal, gable and multi-storey frames, beams with hinges,
+  Pratt and Warren trusses, a 32.5 m transmission tower)
 
 **Results**
 
-- Deflected shape and diagrams with scale sliders
-- Reaction arrows with values
-- Hover anywhere on a member for N, V, M and deflection at that point
-- Results, displacement and member force tables
+- Deflected shape and N, Vy, Vz, T, My, Mz diagrams with scale sliders; peaks located at points
+  of zero shear; exact deflected shape along every member
+- Contour plots of displacement, plate von Mises (top / bottom), Mx, My, Mxy and solid von
+  Mises and principal stresses
+- Reaction arrows; tables of displacements, reactions, member end forces and extremes, plate
+  and solid stresses; an equilibrium check
+- Unstable structures are caught and explained ("mechanism detected at node N4, translation
+  along Y") instead of returning garbage
 
 **Steel design — IS 800:2007**
 
 - Built-in table of 25 rolled sections (ISMB 100–600, ISMC 75–400)
-- Section classification, tension, compression buckling, bending with lateral-torsional
-  buckling, shear and combined axial + bending interaction
-- Utilisation ratio shown as a colour on every member, with the full check breakdown per member
+- Classification, tension, compression buckling about both axes, bending about both axes with
+  lateral-torsional buckling, shear along the web and across the flanges (with the high-shear
+  reduction), and the biaxial interaction checks of cl. 9.3.1.1 and 9.3.2.2
+- One effective length factor per axis for the project, with per-member overrides
+- Utilisation ratio as a colour on every member, with the full check breakdown per member
 
 **Beyond statics**
 
-- Modal analysis: natural frequencies and animated mode shapes from consistent mass matrices
-- Influence lines for reactions, shear, bending moment and deflection under a moving unit load
+- Modal analysis: natural frequencies, effective modal masses and animated 3D mode shapes from
+  consistent mass matrices (beams with torsional inertia, trusses, plates, solids) plus lumped
+  nodal masses, solved by subspace iteration on the sparse factorisation
+- Influence lines for reactions, displacements and the six internal forces at any section, for a
+  unit load moving along the beams — one factorisation, one solve per load position
 
-**Sharing**
+**Editor and sharing**
 
-- PDF calculation report: inputs, results, diagrams and design checks, drawn as vectors
-- Save and open models as JSON
-- Shareable links — the whole model is compressed into the URL, nothing is uploaded
-- Your last model is restored when you come back
-
-**Polish**
-
-- Dark and light themes, responsive layout down to phone width
-- Keyboard shortcuts for every tool and view
-- First-run walkthrough
-- Nine example structures, including a 32.5 m transmission tower
+- Three.js editor: orbit, pan, zoom, Iso / Top / Front / Side views; tools for nodes, members,
+  plates, supports and loads; edit in a properties panel or by table; undo / redo
+- Generators for a multi-storey building frame, a plate mesh on any four corners and a solid
+  block
+- PDF calculation report: inputs, results, vector diagrams in front, top and isometric
+  projections, design checks and natural frequencies
+- Save and open JSON, shareable links (the whole model is compressed into the URL, nothing is
+  uploaded), PNG export; your last model is restored when you come back
+- Files, links and saved models of the former 2D version of FrameForge open as plane frames
+- Dark and light themes, responsive layout down to phone width, keyboard shortcuts
 
 ## Screenshots
 
-| Design checks on a multi-storey frame | Transmission tower, coloured by utilisation |
+| Design checks on a multi-storey plane frame | Transmission tower, coloured by utilisation |
 | --- | --- |
-| ![Three-storey frame with members coloured by IS 800 utilisation ratio](docs/screenshots/design-check.png) | ![Lattice transmission tower with utilisation colours](docs/screenshots/transmission-tower.png) |
+| ![Three-storey plane frame with members coloured by IS 800 utilisation ratio](docs/screenshots/design-check.png) | ![Lattice transmission tower with utilisation colours](docs/screenshots/transmission-tower.png) |
 
-| Axial forces in a Pratt truss | Edit by table |
+| Three-storey 3D frame, Mz diagrams and reactions | Slab on beams: plate stress contours and beam moments |
 | --- | --- |
-| ![Pratt truss with tension and compression diagram](docs/screenshots/pratt-truss.png) | ![Loads table for a continuous beam](docs/screenshots/tables.png) |
+| ![Three-storey 3D steel frame with bending moment diagrams on every member](docs/screenshots/3d-building-frame.png) | ![Concrete slab on edge beams and columns with von Mises contours on the slab](docs/screenshots/3d-slab-on-beams.png) |
 
 | Animated mode shapes | Influence lines |
 | --- | --- |
-| ![First sway mode of a multi-storey frame with its natural frequencies](docs/screenshots/modal.png) | ![Influence line for the support moment of a continuous beam](docs/screenshots/influence-line.png) |
+| ![First sway mode of the 3D building frame with its natural frequencies](docs/screenshots/modal.png) | ![Influence line of the moment at a section of a continuous beam](docs/screenshots/influence-line.png) |
+
+| Axial forces in a Pratt truss | 25-bar transmission tower, axial forces |
+| --- | --- |
+| ![Pratt truss with tension and compression drawn on the members](docs/screenshots/pratt-truss.png) | ![25-bar space truss tower with tension and compression bands](docs/screenshots/3d-tower.png) |
+
+| Pad footing of 8-node solids (dark theme) | Edit by table |
+| --- | --- |
+| ![Solid pad footing under a column with von Mises stress contours](docs/screenshots/3d-pad-footing.png) | ![Loads table for a continuous beam](docs/screenshots/tables.png) |
 
 | PDF calculation report | Phone layout |
 | --- | --- |
 | <img src="docs/screenshots/report.png" alt="First page of the PDF calculation report" width="420"> | <img src="docs/screenshots/mobile.png" alt="FrameForge on a phone-sized screen" width="240"> |
+
+## Elements
+
+Global axes are right-handed with **Y up**; every node has six degrees of freedom
+$[u_x, u_y, u_z, \theta_x, \theta_y, \theta_z]$.
+
+| Element | Nodes | DOF | Formulation | Results |
+| --- | --- | ---: | --- | --- |
+| Truss | 2 | 6 | Axial bar, 3 translations per node | N, elongation |
+| Beam | 2 | 12 | Euler–Bernoulli, axial + biaxial bending + St Venant torsion; roll angle β; any of the six end forces released at either end (static condensation) | N, Vy, Vz, T, My, Mz along the member, exact deflected shape |
+| Plate | 4 | 24 | Flat shell: MITC4 Mindlin bending + QM6 incompatible-mode membrane + drilling penalty | Nx, Ny, Nxy, Mx, My, Mxy, Qx, Qy, top / bottom surface stresses, principal and von Mises |
+| Solid | 8 | 24 | Hexahedron with Wilson–Taylor incompatible modes (modified, passes the patch test) | Stress tensor, principal and von Mises stresses at the centre and nodes |
+
+In plane-frame mode every node is also held out of plane ($u_z = \theta_x = \theta_y = 0$), so
+the same 3D solver gives exactly the 2D frame and truss results (checked to $10^{-8}$ against the
+original 2D solver at every station of every example and textbook problem).
+
+The equations are numbered in reverse Cuthill–McKee order and solved by a skyline (profile)
+$LDL^T$ factorisation, so memory grows with the profile rather than $n^2$. A 30 × 30 plate mesh
+(≈ 5,600 equations) solves in about half a second in the browser.
 
 ## Quick start
 
@@ -114,17 +155,19 @@ npm run dev
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Start the app with hot reload |
-| `npm test` | Unit tests and the validation suite |
-| `npm run coverage` | Tests with coverage (thresholds enforced on the solver) |
+| `npm test` | Unit tests and both validation suites |
+| `npm run coverage` | Tests with coverage (thresholds enforced on the solvers and the design code) |
 | `npm run check` | Lint + tests + production build — run before every commit |
-| `npm run validation` | Regenerate `VALIDATION.md` from the test suite |
-| `npm run e2e` | Playwright script that clicks through every feature on the live site |
-| `npm run screenshots` | Regenerate the screenshots and GIF in this README |
+| `npm run validation` | Regenerate `VALIDATION.md` (plane-frame problems) |
+| `npm run validation3d` | Regenerate `VALIDATION_3D.md` (3D problems) |
+| `npm run e2e` | Playwright script that clicks through every feature (`node scripts/e2e3d.mjs <url>`) |
+| `npm run screenshots` | Regenerate the screenshots and GIF in this README (needs `npx vite preview --port 4179`) |
 
 ## How it works
 
-A structure is a set of members joined at nodes. Each node can move in x, move in y and rotate,
-so a structure with $n$ nodes has $3n$ degrees of freedom. The direct stiffness method builds one
+The method is easiest to see on a plane frame, where each node can move in x, move in y and
+rotate, so a structure with $n$ nodes has $3n$ degrees of freedom. (A plane frame in FrameForge
+is a 3D model held in its plane; the 3D extension is summarised at the end of this section.) The direct stiffness method builds one
 big system of equations
 
 $$ K\,u = F $$
@@ -187,11 +230,24 @@ $EI\,v'' = M$ twice.
 The full derivation — shape functions, the stiffness integral, a worked example, the IS 800
 formulas — is in **[docs/THEORY.md](docs/THEORY.md)**.
 
+**In 3D** — the solver the app runs for everything — the same steps apply with six DOFs per node: a 12 × 12 beam matrix rotated by a 3 × 3
+direction-cosine block, a 24 × 24 flat-shell matrix and a 24 × 24 hexahedron matrix, assembled
+into a sparse matrix and solved by a skyline $LDL^T$ factorisation. The derivations are in
+**[docs/THEORY_3D.md](docs/THEORY_3D.md)**.
+
 ## Validation
 
-Every solver change is checked against closed-form textbook answers. The table below is generated
-by the test suite itself (`npm run validation`); the complete results, quantity by quantity, are
-in **[VALIDATION.md](VALIDATION.md)**.
+Every solver change is checked against closed-form answers and published benchmarks. The tables
+below are generated by the test suites themselves (`npm run validation`, `npm run validation3d`);
+the complete results, quantity by quantity, are in **[VALIDATION.md](VALIDATION.md)** and
+**[VALIDATION_3D.md](VALIDATION_3D.md)**.
+
+### Plane frames
+
+The 2D textbook problems run through the solver the app uses: each is converted to a plane-frame
+3D model and solved by the 3D solver (statics, modal analysis and influence lines). The original
+2D solver stays in the repository as a reference; both must pass, and the two must agree to
+$10^{-8}$.
 
 <!-- validation:start -->
 **26 problems, 122 quantities, all within 0.1 %.**
@@ -226,67 +282,112 @@ in **[VALIDATION.md](VALIDATION.md)**.
 | V26 | Influence line for the central reaction of a two-span continuous beam | x(3L² − x²)/2L³, x(3L² − x²)/2L³, x(3L² − x²)/2L³, … | 6 | < 0.0001 % |
 <!-- validation:end -->
 
+### 3D
+
+Line elements are exact for the loads they carry, so truss and beam cases must match to 0.1 %.
+Plate and solid cases compare a finite-element mesh with a continuum solution; each states the
+tolerance its mesh is expected to meet, and the table shows the error actually reached.
+
+<!-- validation3d:start -->
+**27 problems, 125 quantities, each within its stated tolerance.**
+
+| # | Problem | Quantities | Tolerance | Max error |
+| --- | --- | ---: | ---: | ---: |
+| T01 | Tripod (statically determinate space truss) under a general apex load | 7 | 0.1 % | < 0.0001 % |
+| T02 | Square pyramid (one redundant bar) under vertical and horizontal apex loads | 5 | 0.1 % | < 0.0001 % |
+| B01 | L-shaped cantilever (grillage) with an out-of-plane tip load: bending + torsion | 8 | 0.1 % | < 0.0001 % |
+| B02 | Skew cantilever, roll angle β = 30°, with a biaxial tip load | 8 | 0.1 % | < 0.0001 % |
+| B03 | Fixed-fixed beam along Z: UDL in the local x–y plane, point load in the local x–z plane | 8 | 0.1 % | < 0.0001 % |
+| B04 | Four-column table frame swaying in X and Z (weak and strong column axes) | 6 | 0.1 % | < 0.0001 % |
+| B05 | Secondary beam with moment releases at both ends, framing into two fixed girders | 7 | 0.1 % | < 0.0001 % |
+| B06 | Simply supported beam on a skew plan line (30° to X) with vertical and lateral UDLs | 7 | 0.1 % | < 0.0001 % |
+| B07 | Space frame with every member load type: reactions balance the loads (6 components) | 6 | 0.1 % | < 0.0001 % |
+| P01 | Simply supported square plate, uniform pressure (a/t = 100, 16 × 16 mesh) | 4 | 1 % | 0.0746 % |
+| P02 | Simply supported square plate, central point load (16 × 16 mesh) | 2 | 1 % | 0.3519 % |
+| P03 | Clamped square plate, uniform pressure (a/t = 100, 16 × 16 mesh) | 2 | 2 % | 0.4280 % |
+| P04 | Cantilever plate strip (ν = 0) with a tip line load, 10 elements | 4 | 0.5 % | 0.2500 % |
+| P05 | Square plate twisted by corner forces (pure Mxy), a/t = 100, 4 × 4 mesh | 2 | 0.5 % | 0.0705 % |
+| P06 | Scordelis–Lo barrel vault under self-weight (quarter model, 16 × 16 mesh) | 1 | 1 % | 0.0005 % |
+| P07 | Square box-section cantilever of folded plates (20 × 8 mesh), end torque | 4 | 0.5 % | 0.1558 % |
+| H01 | Prismatic bar in uniaxial tension (4 × 1 × 1 hexahedra) | 6 | 0.1 % | < 0.0001 % |
+| H02 | Slender solid cantilever (L/h = 10) with an end shear, 20 × 2 × 2 hexahedra | 3 | 1 % | 0.1524 % |
+| H03 | Constant-strain patch test on a distorted 3 × 3 × 3 mesh of a unit cube | 9 | 0.1 % | < 0.0001 % |
+| H04 | Solid column under its own weight (ν = 0, 2 × 6 × 2 hexahedra) | 4 | 0.1 % | < 0.0001 % |
+| M01 | Natural frequencies of a simply supported beam, bending about both axes (16 elements) | 4 | 0.1 % | 0.0016 % |
+| M02 | Cantilever: first two bending frequencies and effective modal mass (12 elements) | 3 | 0.1 % | 0.0378 % |
+| M03 | Fixed–free shaft: torsional and axial frequencies (20 elements) | 3 | 0.3 % | 0.2315 % |
+| M04 | Simply supported square plate, first two frequencies (a/t = 100, 16 × 16 mesh) | 2 | 2 % | 1.4340 % |
+| M05 | Solid cantilever (ν = 0, L/h = 20, 20 × 2 × 2 hexahedra): bending and axial frequencies | 2 | 1.5 % | 0.1141 % |
+| I01 | Influence lines of a two-span continuous beam along Z: central reaction and support moment | 4 | 0.1 % | < 0.0001 % |
+| I02 | L-shaped grillage: torque and bending at the root as a load moves along the arm | 4 | 0.1 % | < 0.0001 % |
+<!-- validation3d:end -->
+
 ## Architecture
 
 The solver knows nothing about React, the browser or units. The UI knows nothing about matrices.
 
 ```mermaid
 flowchart LR
-    subgraph UI["src/ui — React"]
-        Canvas["Canvas<br/>SVG editor + diagrams"]
-        Panels["Panels<br/>properties · tables · results · design"]
+    subgraph UI["src/ui3d — React + three.js"]
+        Viewer["Viewer<br/>3D editor + diagrams + contours"]
+        Panels["Panels<br/>properties · tables · generate · results · design · advanced"]
         Store["Store<br/>project + undo history"]
     end
-    subgraph Model["src/model — pure"]
-        Project["Project<br/>kN · m · GPa · cm²"]
-        Edit["Edit operations"]
-        Convert["Unit conversion"]
+    subgraph Model["src/model3d — pure"]
+        Project["Project3D<br/>kN · m · GPa · cm² · mm"]
+        Gen["Generators<br/>frame · plate mesh · solid block"]
+        Convert["Unit conversion<br/>+ plane restraint + from2D"]
+        Design["IS 800 wiring"]
     end
-    subgraph Solver["src/solver — pure, no dependencies"]
-        Element["Element stiffness<br/>+ condensation"]
-        Loads["Equivalent nodal loads"]
-        Assemble["Assembly"]
-        Cholesky["Cholesky solve"]
-        Recover["N · V · M · deflection"]
+    subgraph Solver["src/solver3d — pure, no dependencies"]
+        Elements["Truss · beam · plate · solid<br/>stiffness + consistent mass"]
+        Skyline["RCM + skyline LDLᵀ"]
+        Statics["Statics<br/>diagrams · stresses · reactions"]
+        Modal["Subspace iteration<br/>modes"]
+        Influence["Influence lines<br/>one factorisation, many loads"]
     end
     subgraph Codes["src/design-codes — pure"]
-        Sections["ISMB / ISMC table"]
-        IS800["IS 800:2007 checks"]
+        IS800["IS 800:2007 checks<br/>ISMB / ISMC table"]
     end
     subgraph IO["src/io"]
-        Json["JSON files"]
-        Share["Share URLs"]
-        Pdf["PDF report"]
+        Files["JSON files · share links<br/>2D migration"]
+        Pdf["PDF report (lazy)"]
     end
 
-    Canvas --> Store
+    Viewer --> Store
     Panels --> Store
-    Store --> Edit --> Project
-    Project --> Convert --> Assemble
-    Element --> Assemble
-    Loads --> Assemble
-    Assemble --> Cholesky --> Recover
-    Recover --> IS800
-    Sections --> IS800
-    Recover --> Canvas
-    IS800 --> Panels
-    Project --> Json
-    Project --> Share
-    Recover --> Pdf
+    Store --> Project
+    Gen --> Project
+    Project --> Convert --> Skyline
+    Elements --> Skyline
+    Skyline --> Statics
+    Skyline --> Modal
+    Skyline --> Influence
+    Statics --> Design --> IS800
+    Statics --> Viewer
+    Modal --> Viewer
+    Influence --> Viewer
+    Project --> Files
+    Statics --> Pdf
     IS800 --> Pdf
 ```
 
 ```
 src/
-  solver/         direct stiffness method, modal analysis, influence lines — 99 % coverage
-  design-codes/   IS 800:2007 member checks and the rolled-section table
-  model/          the project model, unit conversion and pure editing operations
-  examples/       nine ready-made structures
-  io/             JSON files, share links, PDF report
-  ui/             React components: canvas, toolbar, panels
-tests/validation/ 26 textbook problems with closed-form answers
+  solver3d/       truss, beam, plate and solid elements; sparse skyline solver; statics, modal
+                  analysis (consistent mass, subspace iteration), influence lines
+  design-codes/   IS 800:2007 member checks (uniaxial and biaxial) and the rolled-section table
+  model3d/        the project model, units, generators, plane-frame mode, design wiring, from2D
+  examples3d/     nine 3D examples, plus the nine 2D examples converted to plane frames
+  io/             JSON files, share links, migration of old 2D files and links, PDF report
+  ui3d/           React components and the three.js viewer
+  solver/, model/, examples/
+                  the original 2D solver and project model: kept to read old 2D files and as the
+                  reference the plane-frame mode is tested against
+tests/validation/ 26 plane-frame problems, 27 3D problems, plane-mode equivalence tests
 scripts/          Playwright end-to-end script and screenshot generator
-docs/             THEORY.md and screenshots
+docs/             THEORY.md (plane frames, IS 800), THEORY_3D.md (3D elements, mass, eigen
+                  solver, influence lines) and screenshots
 ```
 
 Engineering rules the code holds itself to: strict TypeScript with no `any`, ESLint and Prettier
@@ -296,22 +397,34 @@ clean, coverage thresholds enforced in CI, and lint + tests + build run before e
 
 | Key | Action | Key | Action |
 | --- | --- | --- | --- |
-| `V` | Select / move | `1` `2` `3` | Axial / shear / moment diagram |
+| `V` | Select (Shift+click adds; drag a node in plane mode) | `1` … `6` | N, Vy, Vz, T, My, Mz diagram |
 | `N` | Add node | `0` | Hide diagrams |
-| `M` | Draw member | `D` | Toggle deflected shape |
-| `S` | Add support | `R` | Toggle reactions |
-| `L` | Add load | `U` | Toggle utilisation colours |
+| `M` | Draw member | `C` | Next contour plot |
+| `P` | Draw plate | `D` | Toggle deflected shape |
+| `S` | Support tool | `R` | Toggle reactions |
+| `L` | Load tool | `U` | Toggle utilisation colours |
 | `X` | Delete tool | `F` | Fit to window |
 | `Del` | Delete selection | `G` | Toggle snap |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo | `?` | Help |
 
-## Assumptions and limits
+## Limitations
 
-FrameForge does linear elastic, small-displacement analysis of plane structures. Modal analysis
-uses the members' self-weight as the only mass. It does not model
-shear deformation, P-Δ effects, material yielding or out-of-plane behaviour. The design module
-checks rolled ISMB and ISMC members for axial force and major-axis bending, uses the analysis loads
-as design loads, and applies one steel grade and effective length factor to the whole model.
+- Linear elastic, small displacements; no P-Δ, buckling analysis, cracking or yielding.
+- One load case; no load combinations — enter factored loads directly.
+- The IS 800 check uses the largest values along each member (not the concurrent values at one
+  section), the analysis loads as design loads, and the simplified linear section interaction.
+  Torsion is not checked. Members with custom sections are skipped.
+- The torsion constant of rolled ISMB / ISMC sections comes from $\sum b t^3 / 3$ (fillets
+  ignored), slightly below handbook values; the minor-axis plastic modulus is computed from the
+  idealised section.
+- Modal analysis uses consistent mass without the rotary inertia of bending; influence lines use
+  a unit load moving along members (not over plates).
+- A warped quadrilateral plate is analysed on its projection onto the mean plane (with a
+  warning); plate loads produce nodal forces only.
+- Plate and solid stresses are element values at the nodes, not averaged between elements
+  (contour plots average them for display).
+- Solids can only be created with the block generator; there is no drawing tool for them.
+- The solve runs on the main thread: about 0.5 s for ≈ 5,600 equations.
 
 It is a learning tool. Do not use it as the sole basis for a real design.
 
@@ -320,14 +433,15 @@ It is a learning tool. Do not use it as the sole basis for a real design.
 - [x] Direct stiffness solver with validation suite
 - [x] Interactive editor, results view, IS 800 checks
 - [x] PDF, JSON and share-link export
-- [x] Modal analysis (natural frequencies, mode shapes)
-- [x] Influence lines for moving loads
+- [x] Modal analysis and influence lines
+- [x] 3D space frames, space trusses, plates and solids
+- [x] One 3D app with a plane-frame mode; biaxial IS 800 checks, 3D modal analysis, influence
+      lines and PDF report
 - [ ] Load cases and combinations with IS 875 / IS 800 load factors
 - [ ] Angle and hollow sections; built-up members
-- [ ] Self-weight and temperature loads
-- [ ] Inclined supports
-- [ ] Second-order (P-Δ) analysis
-- [ ] 3D space frames
+- [ ] Settlements and spring supports in the editor (the solver supports them)
+- [ ] Second-order (P-Δ) analysis and linear buckling
+- [ ] Solving in a Web Worker for very large meshes
 - [ ] IS 456 reinforced concrete beam checks
 
 ## Contributing

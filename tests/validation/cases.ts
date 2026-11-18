@@ -2,7 +2,7 @@
  * Validation suite: textbook problems with closed-form answers.
  * Units: kN, m. Every check must match the closed-form value to within 0.1 %.
  */
-import { analyze, influenceLine, modalAnalysis } from '../../src/solver';
+import type { Engine2D } from './engine';
 import type {
   AnalysisResult,
   SolverLoad,
@@ -24,7 +24,8 @@ export interface ValidationCase {
   id: string;
   title: string;
   reference: string;
-  run: () => ValidationCheck[];
+  /** Runs the case with the given solver (the 2D reference or the 3D plane-frame path). */
+  run: (engine: Engine2D) => ValidationCheck[];
 }
 
 const E = 2e8; // kN/m² (200 GPa)
@@ -69,11 +70,12 @@ const udl = (member: string, w: number): SolverLoad => ({
 });
 
 const solve = (
+  engine: Engine2D,
   nodes: SolverNode[],
   members: SolverMember[],
   supports: SolverSupport[],
   loads: SolverLoad[],
-): AnalysisResult => analyze({ nodes, members, supports, loads } satisfies StructureModel);
+): AnalysisResult => engine.analyze({ nodes, members, supports, loads } satisfies StructureModel);
 
 const check = (
   quantity: string,
@@ -96,10 +98,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V01',
     title: 'Cantilever with a point load at the tip',
     reference: 'Hibbeler, Structural Analysis, beam deflection tables',
-    run: () => {
+    run: (engine) => {
       const L = 4;
       const P = 25;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [fixed('A')],
@@ -118,10 +121,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V02',
     title: 'Cantilever with a uniformly distributed load',
     reference: 'Hibbeler, Structural Analysis, beam deflection tables',
-    run: () => {
+    run: (engine) => {
       const L = 3.5;
       const w = 12;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [fixed('A')],
@@ -152,10 +156,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V03',
     title: 'Simply supported beam with a central point load',
     reference: 'Gere & Goodno, Mechanics of Materials, App. G',
-    run: () => {
+    run: (engine) => {
       const L = 6;
       const P = 40;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('C', L / 2, 0), node('B', L, 0)],
         [frame('AC', 'A', 'C'), frame('CB', 'C', 'B')],
         [pinned('A'), roller('B')],
@@ -186,10 +191,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V04',
     title: 'Simply supported beam with a UDL (single element)',
     reference: 'Gere & Goodno, Mechanics of Materials, App. G',
-    run: () => {
+    run: (engine) => {
       const L = 8;
       const w = 15;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [pinned('A'), roller('B')],
@@ -220,12 +226,13 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V05',
     title: 'Simply supported beam with an off-centre point load (member load)',
     reference: 'Gere & Goodno, Mechanics of Materials, App. G',
-    run: () => {
+    run: (engine) => {
       const L = 7;
       const a = 2.5;
       const b = L - a;
       const P = 60;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [pinned('A'), roller('B')],
@@ -256,10 +263,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V06',
     title: 'Propped cantilever with a UDL',
     reference: 'Hibbeler, Structural Analysis, ch. 10 (force method)',
-    run: () => {
+    run: (engine) => {
       const L = 5;
       const w = 20;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [fixed('A'), roller('B')],
@@ -303,10 +311,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V07',
     title: 'Fixed-fixed beam with a UDL',
     reference: 'Kassimali, Matrix Analysis of Structures, fixed-end moment tables',
-    run: () => {
+    run: (engine) => {
       const L = 6;
       const w = 18;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [fixed('A'), fixed('B')],
@@ -330,10 +339,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V08',
     title: 'Fixed-fixed beam with a central point load',
     reference: 'Kassimali, Matrix Analysis of Structures, fixed-end moment tables',
-    run: () => {
+    run: (engine) => {
       const L = 5;
       const P = 80;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [fixed('A'), fixed('B')],
@@ -356,10 +366,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V09',
     title: 'Two-span continuous beam, equal spans, UDL',
     reference: 'Hibbeler, Structural Analysis, three-moment equation',
-    run: () => {
+    run: (engine) => {
       const L = 6;
       const w = 10;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0), node('C', 2 * L, 0)],
         [frame('AB', 'A', 'B'), frame('BC', 'B', 'C')],
         [pinned('A'), roller('B'), roller('C')],
@@ -384,10 +395,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V10',
     title: 'Three-span continuous beam, equal spans, UDL',
     reference: 'Reynolds & Steedman, continuous-beam coefficients',
-    run: () => {
+    run: (engine) => {
       const L = 4;
       const w = 24;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0), node('C', 2 * L, 0), node('D', 3 * L, 0)],
         [frame('AB', 'A', 'B'), frame('BC', 'B', 'C'), frame('CD', 'C', 'D')],
         [pinned('A'), roller('B'), roller('C'), roller('D')],
@@ -424,7 +436,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V11',
     title: 'Fixed-base portal frame with a lateral load',
     reference: 'Kleinlogel, Rigid Frame Formulas (slope-deflection, axial deformation neglected)',
-    run: () => {
+    run: (engine) => {
       const h = 4;
       const L = 6;
       const P = 50;
@@ -433,6 +445,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
       const k = (Ib * h) / (Ic * L);
       const col = { A: A_RIGID, I: Ic };
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', 0, h), node('C', L, h), node('D', L, 0)],
         [
           frame('AB', 'A', 'B', col),
@@ -463,7 +476,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V12',
     title: 'Pinned-base portal frame with a UDL on the beam',
     reference: 'Kleinlogel, Rigid Frame Formulas (axial deformation neglected)',
-    run: () => {
+    run: (engine) => {
       const h = 5;
       const L = 8;
       const w = 16;
@@ -472,6 +485,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
       const k = (Ib * h) / (Ic * L);
       const col = { A: A_RIGID, I: Ic };
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', 0, h), node('C', L, h), node('D', L, 0)],
         [
           frame('AB', 'A', 'B', col),
@@ -500,7 +514,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V13',
     title: 'Pratt truss, 4 panels, loads at the bottom-chord joints',
     reference: 'Method of joints / sections and unit-load method (Hibbeler ch. 3, 8)',
-    run: () => {
+    run: (engine) => {
       const a = 4;
       const h = 3;
       const P = 30;
@@ -532,6 +546,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
         bar('U3L2', 'U3', 'L2'),
       ];
       const r = solve(
+        engine,
         nodes,
         members,
         [pinned('L0'), roller('L4')],
@@ -563,7 +578,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V14',
     title: 'Warren truss (equilateral), loads at the bottom-chord joints',
     reference: 'Method of joints / sections (Hibbeler ch. 3)',
-    run: () => {
+    run: (engine) => {
       const a = 3;
       const h = (a * Math.sqrt(3)) / 2;
       const P = 45;
@@ -590,6 +605,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
         bar('T2B3', 'T2', 'B3'),
       ];
       const r = solve(
+        engine,
         nodes,
         members,
         [pinned('B0'), roller('B3')],
@@ -615,13 +631,14 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V15',
     title: 'Symmetric two-bar truss',
     reference: 'Gere & Goodno, Mechanics of Materials, ch. 2',
-    run: () => {
+    run: (engine) => {
       const b = 3;
       const h = 4;
       const P = 100;
       const len = Math.hypot(b, h);
       const sin = h / len;
       const r = solve(
+        engine,
         [node('A', -b, 0), node('B', b, 0), node('C', 0, h)],
         [bar('AC', 'A', 'C'), bar('BC', 'B', 'C')],
         [pinned('A'), pinned('B')],
@@ -644,11 +661,12 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V16',
     title: 'Compound beam with an internal hinge (member end release)',
     reference: 'Statics: Gerber beam, cantilever + drop-in span',
-    run: () => {
+    run: (engine) => {
       const L1 = 3;
       const L2 = 4;
       const w = 14;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L1, 0), node('C', L1 + L2, 0)],
         [frame('AB', 'A', 'B'), frame('BC', 'B', 'C', { releaseI: true })],
         [fixed('A'), roller('C')],
@@ -686,10 +704,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V17',
     title: 'Fixed-fixed beam with a support settlement',
     reference: 'Kassimali, Matrix Analysis of Structures, slope-deflection',
-    run: () => {
+    run: (engine) => {
       const L = 5;
       const delta = 0.012;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [fixed('A'), { ...fixed('B'), settlement: { uy: -delta } }],
@@ -706,10 +725,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V18',
     title: 'Simply supported beam with a triangular load',
     reference: 'Gere & Goodno, Mechanics of Materials, App. G',
-    run: () => {
+    run: (engine) => {
       const L = 6;
       const w = 30;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [pinned('A'), roller('B')],
@@ -740,10 +760,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V19',
     title: 'Fixed-fixed beam with a triangular load',
     reference: 'Kassimali, Matrix Analysis of Structures, fixed-end moment tables',
-    run: () => {
+    run: (engine) => {
       const L = 5;
       const w = 24;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [fixed('A'), fixed('B')],
@@ -761,10 +782,11 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V20',
     title: 'Simply supported beam with a counter-clockwise moment at midspan',
     reference: 'Gere & Goodno, Mechanics of Materials, App. G',
-    run: () => {
+    run: (engine) => {
       const L = 6;
       const M0 = 90;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [pinned('A'), roller('B')],
@@ -789,12 +811,13 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V21',
     title: 'Inclined simply supported rafter under gravity load',
     reference: 'Statics: load per unit length of member on an inclined beam',
-    run: () => {
+    run: (engine) => {
       const Lh = 6;
       const rise = 2.5;
       const len = Math.hypot(Lh, rise);
       const w = 8;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', Lh, rise)],
         [frame('AB', 'A', 'B')],
         [pinned('A'), roller('B')],
@@ -830,12 +853,13 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V22',
     title: 'Cantilever propped by a spring',
     reference: 'Compatibility: beam and spring in parallel',
-    run: () => {
+    run: (engine) => {
       const L = 4;
       const P = 36;
       const ks = 2500;
       const kb = (3 * E * I) / L ** 3;
       const r = solve(
+        engine,
         [node('A', 0, 0), node('B', L, 0)],
         [frame('AB', 'A', 'B')],
         [fixed('A'), { node: 'B', spring: { ky: ks } }],
@@ -858,7 +882,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V23',
     title: 'Natural frequencies of a simply supported beam (modal analysis)',
     reference: 'Chopra, Dynamics of Structures, ch. 16: ω_n = (nπ)²·√(EI/mL⁴)',
-    run: () => {
+    run: (engine) => {
       const L = 6;
       const n = 12;
       const m = A * 7.85;
@@ -866,7 +890,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
       const members = Array.from({ length: n }, (_, k) =>
         frame(`M${k}`, `N${k}`, `N${k + 1}`, { massPerLength: m, A: A_RIGID }),
       );
-      const r = modalAnalysis(
+      const r = engine.modalAnalysis(
         { nodes, members, supports: [pinned('N0'), roller(`N${n}`)], loads: [] },
         3,
       );
@@ -883,7 +907,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V24',
     title: 'Natural frequencies of a cantilever (modal analysis)',
     reference: 'Chopra, Dynamics of Structures, ch. 16: ω_n = (β_n L)²·√(EI/mL⁴)',
-    run: () => {
+    run: (engine) => {
       const L = 4;
       const n = 12;
       const m = A * 7.85;
@@ -891,7 +915,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
       const members = Array.from({ length: n }, (_, k) =>
         frame(`M${k}`, `N${k}`, `N${k + 1}`, { massPerLength: m, A: A_RIGID }),
       );
-      const r = modalAnalysis({ nodes, members, supports: [fixed('N0')], loads: [] }, 2);
+      const r = engine.modalAnalysis({ nodes, members, supports: [fixed('N0')], loads: [] }, 2);
       const base = Math.sqrt((E * I) / (m * L ** 4));
       return [
         check(
@@ -922,7 +946,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V25',
     title: 'Influence lines for a simply supported beam',
     reference: 'Hibbeler, Structural Analysis, ch. 6 (unit load moving across the span)',
-    run: () => {
+    run: (engine) => {
       const L = 8;
       const model: StructureModel = {
         nodes: [node('A', 0, 0), node('B', L, 0)],
@@ -931,17 +955,17 @@ export const VALIDATION_CASES: ValidationCase[] = [
         loads: [],
       };
       const options = { pointsPerMember: 17, magnitude: -1 };
-      const reaction = influenceLine(
+      const reaction = engine.influenceLine(
         model,
         { kind: 'reaction', node: 'A', component: 'fy' },
         options,
       );
-      const moment = influenceLine(
+      const moment = engine.influenceLine(
         model,
         { kind: 'memberForce', member: 'AB', x: L / 2, component: 'M' },
         options,
       );
-      const quarter = influenceLine(
+      const quarter = engine.influenceLine(
         model,
         { kind: 'memberForce', member: 'AB', x: L / 4, component: 'M' },
         options,
@@ -968,7 +992,7 @@ export const VALIDATION_CASES: ValidationCase[] = [
     id: 'V26',
     title: 'Influence line for the central reaction of a two-span continuous beam',
     reference: 'Müller-Breslau / three-moment equation: R_B = x(3L² − x²)/2L³',
-    run: () => {
+    run: (engine) => {
       const L = 5;
       const model: StructureModel = {
         nodes: [node('A', 0, 0), node('B', L, 0), node('C', 2 * L, 0)],
@@ -976,14 +1000,14 @@ export const VALIDATION_CASES: ValidationCase[] = [
         supports: [pinned('A'), roller('B'), roller('C')],
         loads: [],
       };
-      const line = influenceLine(
+      const line = engine.influenceLine(
         model,
         { kind: 'reaction', node: 'B', component: 'fy' },
         { pointsPerMember: 11, path: ['AB'] },
       );
       const rb = (x: number) => (x * (3 * L * L - x * x)) / (2 * L ** 3);
       const atX = (x: number) => line.ordinates.find((o) => Math.abs(o.x - x) < 1e-9)?.value ?? NaN;
-      const support = influenceLine(
+      const support = engine.influenceLine(
         model,
         { kind: 'memberForce', member: 'AB', x: L, component: 'M' },
         { pointsPerMember: 11, path: ['AB'] },

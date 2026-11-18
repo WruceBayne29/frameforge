@@ -21,7 +21,7 @@ body:
       label: Steps to reproduce
       description: The exact steps that trigger the bug.
       placeholder: |
-        1. Open the example "..."
+        1. Open the example "..." (3D model or plane frame?)
         2. Click on "..."
         3. See the error
     validations:
