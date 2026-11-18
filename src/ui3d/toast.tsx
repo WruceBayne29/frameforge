@@ -8,11 +8,14 @@ export interface ToastMessage {
 
 type Listener = (message: ToastMessage) => void;
 const listeners = new Set<Listener>();
+/** Messages sent before the toast area is on screen (e.g. on start-up), shown once it is. */
+const waiting: ToastMessage[] = [];
 let nextToastId = 1;
 
 /** Shows a short notification at the bottom of the screen. */
 export function notify(text: string, kind: 'info' | 'error' = 'info'): void {
   const message = { id: nextToastId++, text, kind };
+  if (listeners.size === 0) waiting.push(message);
   listeners.forEach((listener) => listener(message));
 }
 
@@ -27,6 +30,7 @@ export function Toasts() {
       );
     };
     listeners.add(listener);
+    waiting.splice(0).forEach(listener);
     return () => {
       listeners.delete(listener);
     };

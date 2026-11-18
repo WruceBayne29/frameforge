@@ -1,16 +1,19 @@
-// End-to-end test of the 3D workspace: opens the app in headless Chromium, switches to 3D and
-// exercises examples, tools, generators, result views, files and layouts.
+// End-to-end test of FrameForge: opens the app in headless Chromium and exercises examples
+// (3D and the converted 2D ones), tools, plane-frame mode with node dragging, generators, result
+// views, IS 800 design, modal analysis, influence lines, the PDF report, files, share links,
+// the migration of old 2D files / links / autosaves, themes and the phone layout.
 // Usage: node scripts/e2e3d.mjs [url] [screenshot-dir]
 //   (default url: the live GitHub Pages site; screenshots go to a temporary folder)
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { deflateRawSync } from 'node:zlib';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 
 const url =
   process.argv[2] ?? process.env.FRAMEFORGE_URL ?? 'https://wrucebayne29.github.io/frameforge/';
-const tmp = mkdtempSync(join(tmpdir(), 'frameforge-e2e3d-'));
+const tmp = mkdtempSync(join(tmpdir(), 'frameforge-e2e-'));
 const shots = process.argv[3] ?? join(tmp, 'screenshots');
 mkdirSync(shots, { recursive: true });
 const results = [];
@@ -69,9 +72,56 @@ async function viewerContrast() {
   }
   return seen.size;
 }
+/** A share-link payload as the app makes it: `1.` + base64url(deflate-raw(JSON)). */
+const payload = (value) =>
+  `1.${deflateRawSync(Buffer.from(JSON.stringify(value))).toString('base64url')}`;
+/** A model file of the former 2D app. */
+const OLD_2D = {
+  format: 'frameforge-project',
+  version: 1,
+  name: 'Two-D beam',
+  E: 200,
+  nodes: [
+    { id: 'N1', x: 0, y: 0 },
+    { id: 'N2', x: 5, y: 0 },
+  ],
+  members: [{ id: 'M1', i: 'N1', j: 'N2', type: 'frame', section: 'ISMB 300' }],
+  supports: [
+    { node: 'N1', kind: 'pinned' },
+    { node: 'N2', kind: 'rollerX' },
+  ],
+  loads: [{ id: 'L1', kind: 'nodal', node: 'N2', fx: 0, fy: -10, mz: 0 }],
+};
+/** Waits for a toast containing the text. */
+const toast = (text) =>
+  page
+    .locator('.toasts', { hasText: text })
+    .first()
+    .waitFor({ timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+async function viewerShot() {
+  const box = await page.locator('.viewer3d').boundingBox();
+  return PNG.sync.read(await page.screenshot({ clip: box }));
+}
+/** Share of sampled pixels that differ between two viewer screenshots. */
+function difference(a, b) {
+  let diff = 0;
+  let total = 0;
+  for (let k = 0; k < Math.min(a.data.length, b.data.length); k += 4 * 31) {
+    total++;
+    if (Math.abs(a.data[k] - b.data[k]) + Math.abs(a.data[k + 1] - b.data[k + 1]) > 30) diff++;
+  }
+  return diff / Math.max(total, 1);
+}
+async function newModel(kind = 'space') {
+  await page.selectOption('.new-picker', kind);
+  await settle(200);
+}
 async function addNodeByCoordinates(x, y, z) {
   const fields = ['X', 'Y', 'Z'];
   for (const [k, v] of [x, y, z].entries()) {
+    if (z === undefined && k === 2) continue;
     const input = page.locator(`input[aria-label="New node ${fields[k]} (m)"]`);
     await input.fill(String(v));
     await input.press('Enter');
@@ -81,43 +131,49 @@ async function addNodeByCoordinates(x, y, z) {
 }
 
 try {
-  // ---- 1. Workspace switch ----
+  // ---- 1. Start-up ----
   await page.goto(url, { waitUntil: 'networkidle' });
-  check('the app opens in 2D by default', (await page.locator('.canvas svg').count()) === 1);
-  check(
-    '2D top bar has the 2D | 3D switch',
-    (await page.locator('.workspace-switch').count()) === 1,
-  );
-  await button('.workspace-switch', '3D').click();
   await page.waitForSelector('.viewer3d canvas', { timeout: 20000 });
   await settle(600);
-  check('3D workspace loads with the first example', await solved(), await status());
+  check(
+    'the app opens straight into the 3D viewer',
+    (await page.locator('.viewer3d').count()) === 1,
+  );
+  check(
+    'there is no 2D | 3D switch any more',
+    (await page.locator('.workspace-switch').count()) === 0,
+  );
+  check('the first example solves', await solved(), await status());
   check(
     'the 3D view draws the model',
     (await viewerContrast()) > 40,
     `${await viewerContrast()} colours`,
   );
   check(
-    'the axis triad, presets and legend are shown',
+    'the camera presets and legend are shown',
     (await page.locator('.viewer-presets button').count()) === 5 &&
       (await page.locator('.legend3d').count()) === 1,
   );
   await shot('01-building-frame');
-  check(
-    'the choice of workspace is remembered',
-    (await page.evaluate(() => localStorage.getItem('frameforge-workspace'))) === '3d',
-  );
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForSelector('.viewer3d canvas', { timeout: 20000 });
-  check('a reload stays in 3D', (await page.locator('.viewer3d').count()) === 1);
+  check('a reload keeps the model', await solved());
 
   // ---- 2. Examples ----
   const examples = await page
     .locator('.example-picker option')
     .evaluateAll((els) => els.map((e) => e.value).filter(Boolean));
-  check('nine 3D examples are offered', examples.length === 9, `${examples.length}`);
+  check(
+    'eighteen examples are offered (nine 3D, nine converted 2D)',
+    examples.length === 18,
+    `${examples.length}`,
+  );
   const groups = await page.locator('.example-picker optgroup').count();
-  check('examples are grouped by category', groups === 5);
+  check('examples are grouped by category, with a 2D group', groups === 6);
+  check(
+    'the 2D examples are plane frames',
+    examples.filter((id) => id.startsWith('plane-')).length === 9,
+  );
   for (const id of examples) {
     await page.selectOption('.example-picker', id);
     await settle(400);
@@ -128,6 +184,12 @@ try {
       ok && contrast > 30,
       `${await status()}`.split('\n')[1],
     );
+    if (id.startsWith('plane-')) {
+      check(
+        `example "${id}" opens in plane frame mode`,
+        (await page.locator('.plane-badge').count()) === 1,
+      );
+    }
     await shot(`ex-${id}`);
   }
 
@@ -231,8 +293,7 @@ try {
   );
 
   // ---- 5. Building a model with the tools ----
-  await button('.file-actions', 'New').click();
-  await settle(200);
+  await newModel();
   check('New gives an empty model', (await page.locator('.empty-hint').count()) === 1);
   await tool('Node').click();
   await addNodeByCoordinates(0, 0, 0);
@@ -428,50 +489,251 @@ try {
   );
   await page2.close();
 
-  // A 2D file opened in 3D goes to the 2D workspace, and back.
+  // Files and links of the former 2D app open as plane frames.
   const file2d = join(tmp, 'model2d.json');
-  writeFileSync(
-    file2d,
-    JSON.stringify({
-      format: 'frameforge-project',
-      version: 1,
-      name: 'Two-D beam',
-      E: 200,
-      nodes: [
-        { id: 'N1', x: 0, y: 0 },
-        { id: 'N2', x: 5, y: 0 },
-      ],
-      members: [{ id: 'M1', i: 'N1', j: 'N2', type: 'frame', section: 'ISMB 300' }],
-      supports: [
-        { node: 'N1', kind: 'pinned' },
-        { node: 'N2', kind: 'rollerX' },
-      ],
-      loads: [{ id: 'L1', kind: 'nodal', node: 'N2', fx: 0, fy: -10, mz: 0 }],
-    }),
-  );
+  writeFileSync(file2d, JSON.stringify(OLD_2D));
   await page.setInputFiles('.topbar input[type="file"]', file2d);
-  await page.waitForSelector('.canvas svg .member', { timeout: 10000 });
+  check('an old 2D file says it was converted', await toast('converted to a plane frame'));
+  await settle(300);
   check(
-    'a 2D file opened from 3D switches to the 2D workspace',
-    (await page.locator('.member').count()) === 1,
+    'an old 2D file opens as a plane frame',
+    (await page.locator('.plane-badge').count()) === 1 &&
+      (await page.locator('.project-name').innerText()).includes('Two-D beam') &&
+      (await solved()),
   );
-  await page.setInputFiles('.topbar input[type="file"]', jsonPath);
-  await page.waitForSelector('.viewer3d canvas', { timeout: 20000 });
-  await settle(400);
-  check('a 3D file opened from 2D switches to the 3D workspace', (await count('members')) === 36);
+  const oldLink = `${url.split('#')[0]}#m=${payload(OLD_2D)}`;
+  const page3 = await context.newPage();
+  watch(page3);
+  await page3.goto(oldLink, { waitUntil: 'networkidle' });
+  await page3.waitForSelector('.viewer3d canvas', { timeout: 20000 });
+  await page3.waitForTimeout(600);
+  check(
+    'an old #m= link opens the model as a plane frame',
+    (await page3.locator('.plane-badge').count()) === 1 &&
+      (await page3.locator('.project-name').innerText()).includes('Two-D beam'),
+  );
+  await page3.close();
 
-  await button('.workspace-switch', '2D').click();
-  await page.waitForSelector('.canvas svg .member');
-  await page.selectOption('.example-picker', 'portal-frame');
-  await settle(200);
-  await button('.file-actions', 'Open in 3D').click();
-  await page.waitForSelector('.viewer3d canvas', { timeout: 20000 });
+  // ---- 7b. Plane frame mode ----
+  await page.selectOption('.example-picker', 'plane-portal-frame');
   await settle(400);
-  check('"Open in 3D" converts the 2D model', await solved(), await status());
   check(
-    'the converted model keeps its name',
-    (await page.locator('.project-name').innerText()).toLowerCase().includes('portal'),
+    'a plane frame shows the Plane XY badge',
+    (await page.locator('.plane-badge').count()) === 1,
   );
+  check(
+    'the camera is locked: only "Fit" is offered',
+    (await page.locator('.viewer-presets button').count()) === 1,
+  );
+  const diagramButtons = await page.locator('.viewbar .segmented button').allInnerTexts();
+  check(
+    'plane frames offer the N, Vy and Mz diagrams',
+    diagramButtons.join(' ') === 'None N Vy Mz',
+    diagramButtons.join(' '),
+  );
+  await tab('Results').click();
+  await button('.panel-body .segmented', 'Reactions').click();
+  const reactionHead = await page
+    .locator('table[aria-label="Support reactions"] thead')
+    .innerText();
+  check(
+    'reaction tables show only the in-plane components',
+    reactionHead.includes('Fx') && reactionHead.includes('Mz') && !reactionHead.includes('Fz'),
+    reactionHead.replace(/\s+/g, ' '),
+  );
+  // Drag node N2 (top of the left column) to the right: the results follow live.
+  await tool('Select').click();
+  const before = await status();
+  const p2 = await nodeAt('N2');
+  await page.mouse.move(p2.x, p2.y);
+  await page.mouse.down();
+  for (let k = 1; k <= 6; k++) await page.mouse.move(p2.x + 12 * k, p2.y - 6 * k);
+  await settle(200);
+  const during = await status();
+  await page.mouse.up();
+  await settle(200);
+  await tab('Tables').click();
+  await button('.panel-body .segmented', 'Nodes').click();
+  const x2 = await page
+    .locator('.panel-body table tbody tr')
+    .nth(1)
+    .locator('input[aria-label="X"]')
+    .inputValue();
+  check(
+    'dragging a node moves it on the snap grid',
+    Number(x2) > 0 && Number(x2) * 2 === Math.round(Number(x2) * 2),
+    `x = ${x2}`,
+  );
+  check(
+    'the results update while dragging',
+    during !== before && (await solved()),
+    during.split('\n')[1],
+  );
+  check(
+    'node tables show X and Y only',
+    (await page.locator('.panel-body table thead').first().innerText()).includes('Y (m)') &&
+      !(await page.locator('.panel-body table thead').first().innerText()).includes('Z (m)'),
+  );
+  await page.keyboard.press('Control+z');
+  await settle(150);
+  check(
+    'one Undo puts the dragged node back',
+    (await page
+      .locator('.panel-body table tbody tr')
+      .nth(1)
+      .locator('input[aria-label="X"]')
+      .inputValue()) === '0',
+  );
+  await shot('10-plane-portal');
+  await newModel('plane');
+  check(
+    'New → Plane frame starts an empty plane frame',
+    (await page.locator('.plane-badge').count()) === 1,
+  );
+  await tool('Node').click();
+  check(
+    'in plane mode new nodes take X and Y only',
+    (await page.locator('input[aria-label="New node Z (m)"]').count()) === 0,
+  );
+  await addNodeByCoordinates(0, 0);
+  await addNodeByCoordinates(6, 0);
+  await tool('Member').click();
+  await clickNode('N1');
+  await clickNode('N2');
+  await page.keyboard.press('Escape');
+  await tool('Support').click();
+  const kinds = await page
+    .locator('select[aria-label="Support type"] option')
+    .evaluateAll((els) => els.map((e) => e.value));
+  check(
+    'supports offer the 2D kinds',
+    ['fixed', 'pinned', 'rollerX', 'rollerY'].every((k) => kinds.includes(k)),
+    kinds.join(' '),
+  );
+  await page.selectOption('select[aria-label="Support type"]', 'pinned');
+  await clickNode('N1');
+  await page.selectOption('select[aria-label="Support type"]', 'rollerX');
+  await clickNode('N2');
+  await tool('Load').click();
+  await page.selectOption('select[aria-label="Load type"]', 'distributed');
+  const p1 = await nodeAt('N1');
+  const q2 = await nodeAt('N2');
+  await page.mouse.click((p1.x + q2.x) / 2, (p1.y + q2.y) / 2);
+  await settle(250);
+  check('a beam drawn in plane mode solves', await solved(), await status());
+  await tool('Select').click();
+  await tab('Properties').click();
+  await page.keyboard.press('Escape');
+  const planeToggle = page.locator('input[aria-label="Plane frame (XY)"]');
+  await planeToggle.uncheck();
+  await settle(250);
+  check(
+    'plane mode can be switched off (free 3D camera again)',
+    (await page.locator('.viewer-presets button').count()) === 5,
+  );
+  await planeToggle.check();
+  await settle(250);
+  check('… and back on', (await page.locator('.plane-badge').count()) === 1);
+
+  // ---- 7c. IS 800 design ----
+  await page.selectOption('.example-picker', 'building-frame');
+  await settle(400);
+  await tab('Design').click();
+  const designText = await page.locator('.panel-body').innerText();
+  check(
+    'the Design tab summarises the IS 800 check',
+    designText.includes('Highest utilisation') && designText.includes('Torsion is not checked'),
+  );
+  check(
+    'every rolled member gets a ratio',
+    (await page.locator('table[aria-label="Design summary"] tbody .badge').count()) > 10,
+  );
+  const plain = await viewerShot();
+  await page.keyboard.press('u');
+  await settle(300);
+  const coloured = await viewerShot();
+  check(
+    'U colours the members by utilisation',
+    difference(plain, coloured) > 0.002,
+    `${(difference(plain, coloured) * 100).toFixed(2)} % of pixels`,
+  );
+  await page.locator('table[aria-label="Design summary"] tbody tr').first().click();
+  await settle(150);
+  check(
+    'clicking a member shows the full check breakdown',
+    (await page.locator('.design-breakdown').count()) === 1 &&
+      (await page.locator('.design-breakdown').innerText()).includes('KL/r'),
+  );
+  await page.selectOption('select[aria-label="Steel grade"]', 'E350');
+  await settle(200);
+  check(
+    'the steel grade can be changed',
+    (await page.locator('.panel-body').innerText()).includes('E350'),
+  );
+  await shot('11-design');
+  await page.keyboard.press('u');
+
+  // ---- 7d. Modal analysis and influence lines ----
+  await tab('Advanced').click();
+  await page.locator('label', { hasText: 'Compute natural frequencies' }).locator('input').check();
+  await page.waitForSelector('table[aria-label="Natural frequencies"] tbody tr', {
+    timeout: 10000,
+  });
+  check(
+    'six natural frequencies are listed',
+    (await page.locator('table[aria-label="Natural frequencies"] tbody tr').count()) === 6,
+  );
+  check(
+    'mode 1 is animated',
+    (await page.locator('.legend3d', { hasText: 'Mode 1' }).count()) === 1,
+  );
+  const frameA = await viewerShot();
+  await page.waitForTimeout(400);
+  const frameB = await viewerShot();
+  check(
+    'the mode shape moves',
+    difference(frameA, frameB) > 0.002,
+    `${(difference(frameA, frameB) * 100).toFixed(2)} % of pixels`,
+  );
+  await shot('12-modal');
+  await button('.panel-body', 'Stop the animation').click();
+  await page.selectOption('.example-picker', 'plane-continuous-beam');
+  await settle(400);
+  await tab('Advanced').click();
+  await button('.panel-body', 'Show influence line').click();
+  await page.waitForSelector('table[aria-label="Influence line ordinates"] tbody tr', {
+    timeout: 10000,
+  });
+  check(
+    'an influence line is computed along the beams',
+    (await page.locator('table[aria-label="Influence line ordinates"] tbody tr').count()) > 10,
+  );
+  await page.selectOption('select[aria-label="Influence line response"]', 'memberForce');
+  await settle(300);
+  check(
+    'influence lines of internal forces at a section',
+    (await page.locator('.panel-body').innerText()).includes('Largest'),
+  );
+  await shot('13-influence');
+  await button('.panel-body', 'Hide').click();
+
+  // ---- 7e. PDF report ----
+  for (const id of ['plane-portal-frame', 'slab-on-beams']) {
+    await page.selectOption('.example-picker', id);
+    await settle(400);
+    const [pdf] = await Promise.all([
+      page.waitForEvent('download', { timeout: 30000 }),
+      button('.file-actions', 'PDF report').click(),
+    ]);
+    const pdfPath = join(tmp, `${id}.pdf`);
+    await pdf.saveAs(pdfPath);
+    const bytes = readFileSync(pdfPath);
+    check(
+      `the PDF report of "${id}" downloads`,
+      bytes.subarray(0, 5).toString() === '%PDF-' && bytes.length > 20000,
+      `${pdf.suggestedFilename()} · ${Math.round(bytes.length / 1024)} kB`,
+    );
+  }
 
   // ---- 8. Keyboard, help, theme, phone ----
   await page.keyboard.press('m');
@@ -486,9 +748,10 @@ try {
     (await page.locator('.legend3d').innerText()).includes('N (kN)'),
   );
   await page.keyboard.press('?');
+  const help = await page.locator('.modal').innerText();
   check(
-    'help explains 3D conventions',
-    (await page.locator('.modal').innerText()).includes('Y up'),
+    'help explains the conventions and plane frames',
+    help.includes('Y up') && help.includes('Plane frame'),
   );
   await page.keyboard.press('Escape');
 
@@ -508,7 +771,7 @@ try {
   await shot(`07-footing-${themeBefore}`);
 
   // Bigger model: a 30 × 30 plate mesh (~5 600 equations) stays usable.
-  await button('.file-actions', 'New').click();
+  await newModel();
   await tab('Generate').click();
   const mesh = page.locator('.gen-card[aria-label="Plate mesh generator"]');
   for (const [label, value] of [
@@ -578,6 +841,38 @@ try {
   );
   await shot('09-phone');
   await page.setViewportSize({ width: 1440, height: 900 });
+
+  // ---- 9. The former 2D app's autosave is converted once ----
+  const fresh = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await fresh.addInitScript((model) => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem('frameforge-project', model);
+    localStorage.setItem('frameforge-workspace', '2d');
+  }, JSON.stringify(OLD_2D));
+  const page4 = await fresh.newPage();
+  watch(page4);
+  await page4.goto(url, { waitUntil: 'networkidle' });
+  await page4.waitForSelector('.viewer3d canvas', { timeout: 20000 });
+  check(
+    'an old 2D autosave opens converted, with a message',
+    await page4
+      .locator('.toasts', { hasText: 'converted to a plane frame' })
+      .first()
+      .waitFor({ timeout: 5000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+  check(
+    'the converted autosave is the open model',
+    (await page4.locator('.project-name').innerText()).includes('Two-D beam') &&
+      (await page4.locator('.plane-badge').count()) === 1,
+  );
+  check(
+    'the old autosave is converted only once',
+    (await page4.evaluate(() => localStorage.getItem('frameforge-project'))) === null,
+  );
+  await fresh.close();
 } catch (e) {
   check('script ran to completion', false, String(e));
   await shot('zz-failure').catch(() => undefined);

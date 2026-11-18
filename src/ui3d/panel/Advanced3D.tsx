@@ -86,6 +86,13 @@ function initialTarget(project: Project3D, selected: { kind: string; id: string 
   } as const;
 }
 
+/** True when the target refers to things that exist in the project. */
+function validTarget(project: Project3D, target: InfluenceTarget3D): boolean {
+  if (target.kind === 'memberForce') return project.members.some((m) => m.id === target.member);
+  if (target.kind === 'reaction') return project.supports.some((s) => s.node === target.node);
+  return project.nodes.some((n) => n.id === target.node);
+}
+
 /** Influence lines for a unit load moving along the near-horizontal members. */
 function Influence() {
   const { state, dispatch, extras } = useStore3D();
@@ -96,9 +103,13 @@ function Influence() {
     state.selection && state.selection.ids.length === 1
       ? { kind: state.selection.kind, id: state.selection.ids[0] }
       : null;
-  const [draft, setDraft] = useState<InfluenceTarget3D>(
+  const [stored, setDraft] = useState<InfluenceTarget3D>(
     () => active ?? initialTarget(project, sel),
   );
+  // A target left over from another model falls back to a sensible one for this model.
+  const draft: InfluenceTarget3D = validTarget(project, stored)
+    ? stored
+    : initialTarget(project, sel);
   const line = active ? extras.influence : null;
   const { rows, pager } = usePage(line?.ordinates ?? [], 30);
   const components = COMPONENTS[draft.kind][plane ? 'plane' : 'all'];
