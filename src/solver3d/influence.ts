@@ -3,7 +3,7 @@
  * force at a section of a member) as a unit load moves along a path of members. The stiffness
  * is factorised once; every load position is one more right-hand side.
  */
-import { SolverError } from '../solver/errors';
+import { SolverError } from './errors';
 import { assembleStiffness, pickDofs, prepareSystem } from './analyze';
 import { lineElement, lineForcesAt } from './line';
 import type { LineElement } from './line';

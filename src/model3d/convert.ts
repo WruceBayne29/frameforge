@@ -86,9 +86,6 @@ export function supportFromRestraints(node: string, restraints: Restraints6): Su
   return { node, ux, uy, uz, rx, ry, rz };
 }
 
-/** Degrees of freedom a plane-frame (XY) project holds at every node: uz, rx and ry. */
-export const PLANE_HELD: Restraints6 = [false, false, true, true, true, false];
-
 /** True when the project is a plane frame (lies in z = 0 and only moves in that plane). */
 export function isPlane(project: Pick<Project3D, 'plane'>): boolean {
   return project.plane === 'XY';

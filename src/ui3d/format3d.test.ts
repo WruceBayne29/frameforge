@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { workspaceFromHash, initialWorkspace } from '../workspace';
 import {
   equilibriumError,
   fieldInfo,
@@ -79,16 +78,5 @@ describe('format3d', () => {
     expect(
       equilibriumError({ appliedLoad: [0, -100, 0], equilibrium: [0, 1e-6, 0, 0, 0, 0] }),
     ).toBeCloseTo(1e-8);
-  });
-});
-
-describe('workspace choice', () => {
-  it('follows share links, then the saved choice', () => {
-    expect(workspaceFromHash('#s=abc')).toBe('3d');
-    expect(workspaceFromHash('#m=abc')).toBe('2d');
-    expect(workspaceFromHash('')).toBeNull();
-    expect(initialWorkspace('#m=x', '3d')).toBe('2d');
-    expect(initialWorkspace('', '3d')).toBe('3d');
-    expect(initialWorkspace('', null)).toBe('2d');
   });
 });

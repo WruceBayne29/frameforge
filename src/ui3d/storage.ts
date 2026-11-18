@@ -14,3 +14,11 @@ export function writeStored(key: string, value: string): void {
     // The app works without persistence.
   }
 }
+
+export function removeStored(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Nothing to remove when storage is unavailable.
+  }
+}

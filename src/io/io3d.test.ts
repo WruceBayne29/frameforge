@@ -10,7 +10,7 @@ import {
   ProjectFormatError,
   serializeProject3D,
 } from './projectFile3d';
-import { decodeProject, encodeProject, payloadFromHash } from './share';
+import { decodeProject, encodeJson, payloadFromHash } from './share';
 import { decodeProject3D, encodeProject3D, payloadFromHash3D, shareUrl3D } from './share3d';
 
 const square = [
@@ -412,7 +412,7 @@ describe('3D share links', () => {
 
   it('2D share links still round-trip after exporting the shared helpers', async () => {
     const project = EXAMPLES[0].build();
-    expect(await decodeProject(await encodeProject(project))).toEqual(project);
+    expect(await decodeProject(await encodeJson(project))).toEqual(project);
     await expect(decodeProject('garbage')).rejects.toThrow(ProjectFormatError);
   });
 });

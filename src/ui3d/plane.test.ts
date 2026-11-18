@@ -14,7 +14,7 @@ import {
   toSolverModel3D,
 } from '../model3d';
 import type { Project3D } from '../model3d';
-import { gridSegments, influenceGeometry, supportGlyphs } from './viewer/build';
+import { gridSegments, influenceGeometry, memberDiagram, supportGlyphs } from './viewer/build';
 import {
   applySupport,
   DEFAULT_TOOL_OPTIONS_3D,
@@ -303,5 +303,21 @@ describe('influence line geometry', () => {
       3,
     );
     expect(reaction.marker).toEqual([0, 0, 0]);
+  });
+});
+
+describe('axial force on plane trusses', () => {
+  it('is drawn on the members themselves, not as offset bands', () => {
+    const project = getExample3D('plane-pratt-truss')!.build();
+    const result = analyzeProject3D(project);
+    const d = memberDiagram(project, result, 'N', 0.01);
+    // Every loaded member (a zero-force member has nothing to draw).
+    expect(d.bars.length).toBeGreaterThanOrEqual(project.members.length - 2);
+    expect(d.positive.length + d.negative.length).toBe(0);
+    expect(d.bars.some((b) => b.value < 0) && d.bars.some((b) => b.value > 0)).toBe(true);
+    // In 3D the same truss gets bands.
+    const space = memberDiagram({ ...project, plane: undefined }, result, 'N', 0.01);
+    expect(space.bars).toEqual([]);
+    expect(space.positive.length).toBeGreaterThan(0);
   });
 });

@@ -48,19 +48,3 @@ export function designMembers(
   }
   return out;
 }
-
-const SHORT_LABELS: Record<string, string> = {
-  tension: 'Tension',
-  compression: 'Compression buckling',
-  shear: 'Shear',
-  bending: 'Bending',
-  'interaction-section': 'Axial + bending',
-  'buckling-y': 'Buckling y-y + bending',
-  'buckling-z': 'Buckling z-z + bending',
-  'tension-bending': 'Tension + bending',
-};
-
-/** Compact name of a design check for tables, falling back to the full name. */
-export function checkLabel(id: string, fallback: string): string {
-  return SHORT_LABELS[id] ?? fallback;
-}

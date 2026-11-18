@@ -1,6 +1,6 @@
 export { analyze3d, validateModel3d } from './analyze';
-export { SolverError } from '../solver/errors';
-export type { SolverErrorCode } from '../solver/errors';
+export { SolverError } from './errors';
+export type { SolverErrorCode } from './errors';
 export type * from './types';
 export { memberAxes } from './line';
 export { plateAxes } from './plate';

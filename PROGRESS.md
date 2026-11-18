@@ -63,7 +63,19 @@ pass:
   solids as wireframes; raster capture of the live viewer added for plate / solid models.
   Plane mode: one front view per figure with the 2D titles, symbols and N / V / M diagrams.
   Tables longer than 400 rows are cut with a note. Tests in `report3d.test.ts` (Node).
-- [ ] Phase 6 — delete the 2D UI, migrate old files / `#m=` links / autosave.
+- [x] **Phase 6 — the 2D workspace is gone.** Deleted `src/ui/` (storage, theme, toast,
+  format, base styles and the three field components moved into `src/ui3d/`, 2D-only CSS
+  pruned), `src/Root.tsx`, `src/workspace.ts`, `scripts/e2e.mjs` and the 2D PDF report
+  (`report3d.ts` is now `src/io/report.ts`). `src/main.tsx` renders `App3D` directly; only the
+  PDF report is lazy. Migration (`src/io/migrate.ts`, tested): 2D `.json` files and `#m=`
+  links open converted to plane frames with a toast; the 2D autosave is converted once on
+  first load (the model of the last-used workspace opens, the other is one Undo away) and the
+  legacy keys are removed. `src/solver3d` owns `SolverError` and the dense helpers; the 2D
+  solver and `src/model` (types, `toSolverModel`, `designMembers`) remain only for `from2D`
+  and as the test reference. Dead code removed (2D model edit/display/ids, `shareUrl`,
+  `encodeProject`, unused exports). VALIDATION.md now publishes the plane-frame 3D results.
+  Also: constant axial force in plane trusses is drawn on the member (as in 2D); index.html
+  and package.json descriptions; help text.
 - [ ] Phase 7 — e2e, screenshots, docs, PR (do not merge).
 
 Dev server for this branch: `.claude/worktrees/3d-only` is a git worktree of the main

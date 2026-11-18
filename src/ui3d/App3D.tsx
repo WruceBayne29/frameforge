@@ -1,51 +1,69 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { EXAMPLES_3D } from '../examples3d';
-import { parseProject3DText, serializeProject3D } from '../io/projectFile3d';
-import { decodeProject3D, payloadFromHash3D } from '../io/share3d';
+import { LEGACY_2D_PROJECT_KEY, LEGACY_WORKSPACE_KEY, openShareHash, startUp } from '../io/migrate';
+import type { StartUp } from '../io/migrate';
+import { serializeProject3D } from '../io/projectFile3d';
+import { isPlane } from '../model3d';
 import type { FieldKind, Project3D } from '../model3d';
-import { readStored, writeStored } from '../ui/storage';
-import { useTheme } from '../ui/theme';
-import { notify, Toasts } from '../ui/toast';
+import { readStored, removeStored, writeStored } from './storage';
+import { useTheme } from './theme';
+import { notify, Toasts } from './toast';
 import { FIELDS_3D, mm } from './format3d';
 import { Help3D } from './Help3D';
 import { SidePanel3D } from './SidePanel3D';
-import { deleteSelection, StoreProvider3D, useStore3D } from './store';
+import { deleteSelection, PLANE_DIAGRAMS, StoreProvider3D, useStore3D } from './store';
 import type { Tool3D, ViewOptions3D } from './store';
 import { Toolbar3D } from './Toolbar3D';
 import { TopBar3D } from './TopBar3D';
 import { Viewer } from './Viewer';
 import type { ViewerHandle } from './Viewer';
 import { ScaleControls, ViewBar3D, ViewPresets } from './ViewBar3D';
-import '../ui/styles.css';
+import './styles.css';
 import './styles3d.css';
 
 export const STORAGE_KEY_3D = 'frameforge-project-3d';
 
-/** The model from the last visit, or the first example for new visitors. */
-function initialProject(): Project3D {
-  const saved = readStored(STORAGE_KEY_3D);
-  if (saved) {
-    try {
-      const project = parseProject3DText(saved);
-      if (project.nodes.length > 0) return project;
-    } catch {
-      // Fall through to the default example.
-    }
-  }
-  return EXAMPLES_3D[0].build();
+/** What to open on start-up: the last 3D model and, once, the former 2D workspace's model. */
+function readStartUp(): StartUp {
+  return startUp({
+    project3d: readStored(STORAGE_KEY_3D),
+    project2d: readStored(LEGACY_2D_PROJECT_KEY),
+    workspace: readStored(LEGACY_WORKSPACE_KEY),
+  });
 }
 
-/** Opens `#s=` share links and keeps the model in local storage. */
-function Persistence3D() {
+/**
+ * Opens share links (`#s=`, and former 2D `#m=` links, converted to plane frames), finishes
+ * the one-off migration of the 2D autosave and keeps the model in local storage.
+ */
+function Persistence3D({ start }: { start: StartUp }) {
   const { state, dispatch } = useStore3D();
+  const migrated = useRef(false);
+  useEffect(() => {
+    if (migrated.current) return;
+    migrated.current = true;
+    if (start.then) dispatch({ type: 'load', project: start.then });
+    if (start.message) notify(start.message);
+    // The former 2D workspace's autosave has been converted: do not convert it again.
+    removeStored(LEGACY_2D_PROJECT_KEY);
+    removeStored(LEGACY_WORKSPACE_KEY);
+  }, [start, dispatch]);
+  const opened = useRef<string | null>(null);
   useEffect(() => {
     const load = () => {
-      const payload = payloadFromHash3D(window.location.hash);
-      if (!payload) return;
-      decodeProject3D(payload)
-        .then((project) => {
-          dispatch({ type: 'load', project });
-          notify(`Opened shared model "${project.name}".`);
+      const hash = window.location.hash;
+      // A link is opened once (effects can run twice, and the hash stays in the address bar).
+      if (!hash || hash === opened.current) return;
+      opened.current = hash;
+      openShareHash(hash)
+        .then((opened) => {
+          if (!opened) return;
+          dispatch({ type: 'load', project: opened.project });
+          notify(
+            opened.converted
+              ? `Opened the 2D model "${opened.project.name}", converted to a plane frame.`
+              : `Opened shared model "${opened.project.name}".`,
+          );
         })
         .catch((e: unknown) =>
           notify(e instanceof Error ? e.message : 'Could not open that link.', 'error'),
@@ -161,8 +179,13 @@ function Shortcuts3D({ onHelp }: { onHelp: () => void }) {
       const view = state.view;
       if (key === '?') onHelp();
       else if (TOOL_KEYS[key]) dispatch({ type: 'tool', tool: TOOL_KEYS[key] });
-      else if (DIAGRAM_KEYS[key]) dispatch({ type: 'view', view: { diagram: DIAGRAM_KEYS[key] } });
-      else if (key === 'd') dispatch({ type: 'view', view: { deformed: !view.deformed } });
+      else if (DIAGRAM_KEYS[key]) {
+        // Plane frames only have N, Vy and Mz.
+        const diagram = DIAGRAM_KEYS[key];
+        if (!isPlane(state.project) || PLANE_DIAGRAMS.includes(diagram)) {
+          dispatch({ type: 'view', view: { diagram } });
+        }
+      } else if (key === 'd') dispatch({ type: 'view', view: { deformed: !view.deformed } });
       else if (key === 'r') dispatch({ type: 'view', view: { reactions: !view.reactions } });
       else if (key === 'u') dispatch({ type: 'view', view: { utilisation: !view.utilisation } });
       else if (key === 'f') dispatch({ type: 'camera', preset: 'fit' });
@@ -225,17 +248,18 @@ function Stage3D() {
   );
 }
 
-export default function App3D({ incoming }: { incoming?: Project3D }) {
+export default function App3D() {
   const [theme, toggleTheme] = useTheme();
   const [help, setHelp] = useState(false);
-  const [initial] = useState(() => incoming ?? initialProject());
+  const [start] = useState(readStartUp);
+  const [initial] = useState(() => start.initial ?? EXAMPLES_3D[0].build());
   const openHelp = useCallback(() => setHelp(true), []);
   return (
     <StoreProvider3D initial={initial}>
       <div className="app app3d">
         <TopBar3D theme={theme} onToggleTheme={toggleTheme} onHelp={openHelp} />
         <Shortcuts3D onHelp={openHelp} />
-        <Persistence3D />
+        <Persistence3D start={start} />
         <div className="main">
           <Toolbar3D />
           <Stage3D />

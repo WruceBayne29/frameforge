@@ -9,8 +9,8 @@
  * in the local x–y plane couples v and θz (= dv/dx) and uses E·Iz; bending in the local x–z
  * plane couples w and θy (= −dw/dx) and uses E·Iy.
  */
-import { SolverError } from '../solver/errors';
-import { matMul, matVec, transpose, zeros } from '../solver/linalg';
+import { SolverError } from './errors';
+import { matMul, matVec, transpose, zeros } from './linalg';
 import type { ElementMatrices } from './contract';
 import type { LineAxes, LocalLineLoads, SectionForces } from './lineLoads';
 import {

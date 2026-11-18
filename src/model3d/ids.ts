@@ -1,9 +1,13 @@
-import { nextId } from '../model/ids';
-
-export { nextId };
-
-/** Id prefixes used by 3D projects. */
-export const ID_PREFIX = { node: 'N', member: 'M', plate: 'P', solid: 'S', load: 'L' } as const;
+/** Returns the next free id of the form `${prefix}${n}` given the ids already in use. */
+export function nextId(prefix: string, existing: Iterable<string>): string {
+  let max = 0;
+  for (const id of existing) {
+    if (!id.startsWith(prefix)) continue;
+    const n = Number(id.slice(prefix.length));
+    if (Number.isInteger(n) && n > max) max = n;
+  }
+  return `${prefix}${max + 1}`;
+}
 
 /**
  * Returns a function that hands out consecutive free ids `${prefix}${n}`, starting after the

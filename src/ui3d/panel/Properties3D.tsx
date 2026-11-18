@@ -7,7 +7,7 @@ import {
   setPlaneMode,
   utilisationColor,
 } from '../../model3d';
-import { notify } from '../../ui/toast';
+import { notify } from '../toast';
 import type { EndRelease, Project3D, Restraints6 } from '../../model3d';
 import {
   addDefaultLoad,

@@ -10,8 +10,8 @@
  *   v′ = w,  θz′ = −θy,  Fy′ = Fz,  Mz′ = −My,
  * which is where every sign difference between the two planes below comes from.
  */
-import { SolverError } from '../solver/errors';
-import { gauss3 } from '../solver/linalg';
+import { SolverError } from './errors';
+import { gauss3 } from './linalg';
 import type { MemberLoad3D, MemberLoadDirection, MemberType3D, Vec3 } from './types';
 
 /** Unit vectors of the member's local axes, in global coordinates. */

@@ -12,7 +12,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ['Esc', 'Cancel / deselect'],
   ['Ctrl+Z', 'Undo'],
   ['Ctrl+Shift+Z', 'Redo'],
-  ['1 … 6', 'N, Vy, Vz, T, My, Mz diagram'],
+  ['1 … 6', 'N, Vy, Vz, T, My, Mz diagram (plane frames: 1, 2, 6)'],
   ['0', 'Hide member diagrams'],
   ['C', 'Next contour plot'],
   ['D', 'Toggle deformed shape'],
@@ -20,7 +20,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ['U', 'Toggle IS 800 utilisation colours'],
   ['F', 'Fit model to window'],
   ['G', 'Toggle snap to grid'],
-  ['Drag', 'Orbit'],
+  ['Drag', 'Orbit (plane frames: drag a node to move it)'],
   ['Right-drag', 'Pan'],
   ['Scroll / pinch', 'Zoom'],
   ['?', 'This help'],
@@ -40,14 +40,15 @@ export function Help3D({ onClose }: { onClose: () => void }) {
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label="3D help"
+        aria-label="Help"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>FrameForge 3D help</h2>
+        <h2>FrameForge help</h2>
         <p className="muted">
-          Model space frames, trusses, plates (flat shells) and solids (8-node bricks). Pick an
-          example, or generate a frame, a plate mesh or a solid block from the Generate tab, add
-          supports and loads, and the results update as you edit. Everything runs in your browser.
+          Model space frames, trusses, plates (flat shells) and solids (8-node bricks), or plane
+          frames and trusses in 2D. Pick an example, or generate a frame, a plate mesh or a solid
+          block from the Generate tab, add supports and loads, and the results update as you edit.
+          Everything runs in your browser.
         </p>
         <h4>Keyboard and mouse</h4>
         <div className="shortcut-grid">
@@ -67,10 +68,20 @@ export function Help3D({ onClose }: { onClose: () => void }) {
           tension. Plate moments and stresses are in each plate&rsquo;s local axes; solid stresses
           are global. Units: kN, m, kN·m; plate thickness mm; stresses MPa.
         </p>
-        <h4>2D and 3D</h4>
+        <h4>Plane frames (2D)</h4>
         <p className="muted">
-          Use the 2D | 3D switch to change workspace; each keeps its own model. &ldquo;Open in
-          3D&rdquo; in the 2D workspace converts a plane model into the z = 0 plane.
+          For flat frames, beams and trusses, tick &ldquo;Plane frame (XY)&rdquo; in Properties
+          (with nothing selected) or choose New → Plane frame. The model then lies in the z = 0
+          plane and only moves in it: the view is a fixed front view, nodes are drawn on z = 0 and
+          can be dragged with the select tool, and only N, Vy and Mz are shown. Files, share links
+          and saved models from the former 2D app open as plane frames.
+        </p>
+        <h4>Design, dynamics and reports</h4>
+        <p className="muted">
+          The Design tab checks every ISMB / ISMC member to IS 800:2007 (biaxial bending, both
+          buckling axes; torsion is not checked). The Advanced tab computes natural frequencies with
+          animated mode shapes and influence lines for a moving unit load. PDF report downloads a
+          calculation report with inputs, results, diagrams and design checks.
         </p>
         <div className="button-row end">
           <button type="button" className="primary" onClick={onClose}>

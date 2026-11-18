@@ -4,7 +4,6 @@ export {
   massDensity,
   materialOf,
   memberProps3D,
-  PLANE_HELD,
   sectionProps3D,
   shearModulus,
   supportFromRestraints,
@@ -12,7 +11,7 @@ export {
   toSolverModel3D,
 } from './convert';
 export type { SectionProps3D } from './convert';
-export { ID_PREFIX, idSequence, nextId } from './ids';
+export { idSequence, nextId } from './ids';
 export {
   CONCRETE,
   DEFAULT_DESIGN_3D,

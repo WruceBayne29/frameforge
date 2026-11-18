@@ -17,7 +17,7 @@
     "check": "npm run lint && npm run test && npm run build",
     "validation": "WRITE_VALIDATION=1 vitest run tests/validation/validation.test.ts",
     "validation3d": "WRITE_VALIDATION=1 vitest run tests/validation/validation3d.test.ts",
-    "e2e": "node scripts/e2e.mjs",
+    "e2e": "node scripts/e2e3d.mjs",
     "e2e3d": "node scripts/e2e3d.mjs",
     "screenshots": "node scripts/screenshots.mjs"
   },
@@ -49,6 +49,6 @@
     "vite": "^8.3.6",
     "vitest": "^4.1.12"
   },
-  "description": "Browser-based structural analysis: 2D frames and trusses with IS 800:2007 steel checks, and 3D space frames, trusses, plates and solids (direct stiffness / finite element method)",
+  "description": "Browser-based 3D structural analysis: space frames, trusses, plates and solids, a plane-frame mode for 2D problems, IS 800:2007 steel checks, modal analysis, influence lines and PDF reports (direct stiffness / finite element method)",
   "license": "MIT"
 }

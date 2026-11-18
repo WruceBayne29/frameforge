@@ -992,6 +992,17 @@ export class ViewerEngine {
         );
       };
       out.push(fill(d.positive, main), fill(d.negative, negative));
+      for (const bar of d.bars) {
+        const width = 2 + (7 * Math.abs(bar.value)) / Math.max(d.peak, 1e-12);
+        out.push(
+          this.fatLines(
+            new Float32Array([...bar.from, ...bar.to]),
+            bar.value >= 0 ? main : negative,
+            width,
+            0.75,
+          ),
+        );
+      }
       out.push(this.fatLines(d.outline, main, 1.4, 0.9));
       out.push(...this.labels(d.labels));
     }

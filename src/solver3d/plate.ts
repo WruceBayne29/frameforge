@@ -40,8 +40,8 @@
  * nodal forces only (no fixed-end moments), and the recovered stress resultants come from the
  * nodal displacements alone, as usual for Mindlin elements.
  */
-import { SolverError } from '../solver/errors';
-import { zeros } from '../solver/linalg';
+import { SolverError } from './errors';
+import { zeros } from './linalg';
 import type { ElementMatrices } from './contract';
 import { cross, dot, GAUSS2, invert, norm, planeStress, scale, sub } from './math';
 import type {

@@ -343,13 +343,6 @@ button.ghost:hover:not(:disabled),
 .canvas svg {
   display: block;
 }
-
-.cursor-grab {
-  cursor: grab;
-}
-.cursor-panning {
-  cursor: grabbing;
-}
 .cursor-pointer {
   cursor: pointer;
 }
@@ -401,10 +394,6 @@ button.ghost:hover:not(:disabled),
   stroke-width: 1.6;
 }
 
-.member-label {
-  fill: var(--muted);
-}
-
 .node circle {
   fill: var(--node);
   stroke: var(--canvas);
@@ -436,10 +425,6 @@ button.ghost:hover:not(:disabled),
   stroke-opacity: 0.35;
 }
 
-.node-label {
-  fill: var(--muted);
-}
-
 .support {
   fill: none;
   stroke: var(--support);
@@ -447,29 +432,14 @@ button.ghost:hover:not(:disabled),
   stroke-linejoin: round;
 }
 
-.support .support-body {
-  fill: var(--canvas);
-}
-
 .support .ground {
   stroke-width: 2.2;
 }
 
-.support .hatch {
-  stroke-width: 1;
-}
-
-.load line,
-.load .load-line,
-.load .moment-arc {
+.load line {
   stroke: var(--load);
   stroke-width: 1.6;
   fill: none;
-}
-
-.load .arrow-head {
-  fill: var(--load);
-  stroke: none;
 }
 
 .load text {
@@ -477,21 +447,14 @@ button.ghost:hover:not(:disabled),
   font-weight: 600;
 }
 
-.load.selected line,
-.load.selected .load-line,
-.load.selected .moment-arc {
+.load.selected line {
   stroke-width: 3;
 }
 
-.reaction line,
-.reaction .moment-arc {
+.reaction line {
   stroke: var(--reaction);
   stroke-width: 2;
   fill: none;
-}
-
-.reaction .arrow-head {
-  fill: var(--reaction);
 }
 
 .reaction text {
@@ -506,107 +469,6 @@ button.ghost:hover:not(:disabled),
   stroke-dasharray: 6 4;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.diagram-fill {
-  stroke: none;
-  fill-opacity: 0.2;
-}
-
-.diagram-line {
-  fill: none;
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-}
-
-.diagram-M .diagram-fill {
-  fill: var(--moment);
-}
-.diagram-M .diagram-line {
-  stroke: var(--moment);
-}
-.diagram-M .diagram-label {
-  fill: var(--moment);
-}
-.diagram-V .diagram-fill {
-  fill: var(--shear);
-}
-.diagram-V .diagram-line {
-  stroke: var(--shear);
-}
-.diagram-V .diagram-label {
-  fill: var(--shear);
-}
-.diagram-N.tension .diagram-fill {
-  fill: var(--tension);
-}
-.diagram-N.tension .diagram-line {
-  stroke: var(--tension);
-}
-.diagram-N.tension .diagram-label {
-  fill: var(--tension);
-}
-.diagram-N.compression .diagram-fill {
-  fill: var(--compression);
-}
-.diagram-N.compression .diagram-line {
-  stroke: var(--compression);
-}
-.diagram-N.compression .diagram-label {
-  fill: var(--compression);
-}
-
-.diagram-label {
-  font-weight: 600;
-}
-
-.util-label rect {
-  fill: var(--surface);
-  stroke: var(--border);
-}
-
-.util-label text {
-  font-weight: 700;
-  fill: var(--text);
-  stroke: none;
-}
-
-.rubber-band {
-  stroke: var(--accent);
-  stroke-width: 2;
-  stroke-dasharray: 5 4;
-}
-
-.ghost-node {
-  fill: var(--accent);
-  fill-opacity: 0.35;
-  stroke: var(--accent);
-}
-
-.tooltip {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 150px;
-  max-width: 260px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-  z-index: 5;
-}
-
-.tooltip strong {
-  margin-bottom: 2px;
-}
-
-.tooltip span {
-  color: var(--muted);
 }
 
 .canvas-readout {
@@ -1023,11 +885,6 @@ table.data tr.total td {
   border-bottom: 0;
 }
 
-table.data tr.fail td {
-  color: var(--danger);
-  font-weight: 600;
-}
-
 table.data td.tension {
   color: var(--tension);
 }
@@ -1049,15 +906,6 @@ table.editable select {
 
 table.editable select {
   max-width: 96px;
-}
-
-button.link-button {
-  border: 0;
-  background: none;
-  padding: 0 2px;
-  min-height: 0;
-  font-weight: 600;
-  color: var(--accent);
 }
 
 button.icon {
@@ -1273,63 +1121,6 @@ button.icon {
   margin-top: 6px;
 }
 
-.tour {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-}
-
-.tour-dim {
-  position: absolute;
-  inset: 0;
-  background: rgba(2, 6, 23, 0.6);
-}
-
-.tour-highlight {
-  position: absolute;
-  border-radius: 10px;
-  border: 2px solid var(--accent);
-  box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.6);
-  pointer-events: none;
-  transition: all 0.2s ease;
-}
-
-.tour-card {
-  position: absolute;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  padding: 14px 16px;
-  transition:
-    left 0.2s ease,
-    top 0.2s ease;
-}
-
-.tour-card h3 {
-  margin: 2px 0 6px;
-  font-size: 15px;
-}
-
-.tour-card p {
-  margin: 0 0 8px;
-  color: var(--muted);
-}
-
-.tour-count {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: 0.05em;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tour-highlight,
-  .tour-card {
-    transition: none;
-  }
-}
-
 @media (max-width: 860px) {
   .shortcut-grid {
     grid-template-columns: 1fr;
@@ -1368,19 +1159,6 @@ button.icon {
   }
 }
 
-.axial-bar {
-  stroke-linecap: round;
-  stroke-opacity: 0.5;
-}
-
-.diagram-N.tension .axial-bar {
-  stroke: var(--tension);
-}
-
-.diagram-N.compression .axial-bar {
-  stroke: var(--compression);
-}
-
 /* ---------- Mode shapes and influence lines ---------- */
 
 .mode-shape {
@@ -1389,44 +1167,6 @@ button.icon {
   stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.mode-node {
-  fill: var(--deformed);
-  stroke: var(--canvas);
-  stroke-width: 1.2;
-}
-
-.influence-fill {
-  fill: var(--reaction);
-  fill-opacity: 0.16;
-  stroke: none;
-}
-
-.influence-line {
-  fill: none;
-  stroke: var(--reaction);
-  stroke-width: 2;
-  stroke-linejoin: round;
-}
-
-.influence-dot {
-  fill: var(--reaction);
-}
-
-.influence-label {
-  fill: var(--reaction);
-  font-weight: 700;
-}
-
-.influence-target circle {
-  fill: none;
-  stroke: var(--load);
-  stroke-width: 2;
-}
-
-.influence-target .influence-target-dot {
-  fill: var(--load);
 }
 
 .tabs button {

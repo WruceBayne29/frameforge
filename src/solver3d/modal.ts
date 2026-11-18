@@ -4,7 +4,7 @@
  * lumped nodal masses. The stiffness is factorised once (skyline LDLᵀ) and the eigenpairs are
  * found by subspace iteration, so models with thousands of equations stay fast.
  */
-import { SolverError } from '../solver/errors';
+import { SolverError } from './errors';
 import { assembleStiffness, pickDofs, prepareSystem } from './analyze';
 import { lineMass, lineShape } from './line';
 import { plateMass } from './plate';

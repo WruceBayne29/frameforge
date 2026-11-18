@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { gridFrame, plateMesh, solidBlock } from '../../model3d';
 import type { Generated, Point3, Project3D } from '../../model3d';
-import { notify } from '../../ui/toast';
+import { notify } from '../toast';
 import {
   addCustomSection,
   addMaterial,

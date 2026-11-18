@@ -6,7 +6,7 @@
  * stiffness matrix and an equivalent nodal load vector in global axes (see `contract.ts`),
  * and gets its own displacement vector back for result recovery.
  */
-import { SolverError } from '../solver/errors';
+import { SolverError } from './errors';
 import type { ElementMatrices } from './contract';
 import type { LineElement } from './line';
 import { lineElement, lineResult } from './line';

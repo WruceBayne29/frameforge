@@ -109,8 +109,6 @@ export const DEFAULT_DESIGN: DesignSettings = {
   effectiveLengthFactor: 1,
 };
 
-export const DEFAULT_SECTION = 'ISMB 300';
-
 export function emptyProject(name = 'Untitled'): Project {
   return {
     version: 1,

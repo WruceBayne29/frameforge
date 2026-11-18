@@ -6,7 +6,7 @@ import { NumberField, RestraintBoxes, SectionSelect3D } from './fields3d';
 import { LOAD_TOOL_TARGET, LOAD_TOOL_UNIT, applySupport, applyToolLoad } from './state';
 import type { LoadToolKind, SupportPreset, Tool3D } from './state';
 import { useStore3D } from './store';
-import { notify } from '../ui/toast';
+import { notify } from './toast';
 
 const icon = (path: ReactNode) => (
   <svg

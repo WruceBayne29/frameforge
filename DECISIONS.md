@@ -152,3 +152,11 @@ members".
     load position only adds the moving load's equivalent nodal loads on one member and one
     forward/back substitution, so a 13-point line over dozens of members costs about one
     analysis. Ordinates are checked against full static analyses in the tests.
+49. **The UI folder stays `src/ui3d`.** Renaming it to `src/ui` after deleting the 2D UI would
+    touch every import for no functional gain; it is the only UI now.
+50. **Start-up migration of two autosaves.** When a visitor has both a 2D and a 3D autosave,
+    the model of the workspace they used last opens and the other is loaded underneath it, so
+    one Undo brings it back; a toast says which. Nothing is silently dropped.
+51. **Plane-frame trusses draw constant axial force on the members** (decision 18, ported):
+    offset bands overlap unreadably in a 2D truss. In 3D the bands stay, because their plane
+    (local x–y) is what shows which way a member is loaded in space.

@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
 import { EXAMPLES_3D, PLANE_CATEGORY } from '../examples3d';
-import { parseProjectText, ProjectFormatError } from '../io/projectFile';
-import { detectProjectKind, parseProject3DText, serializeProject3D } from '../io/projectFile3d';
+import { openProjectText } from '../io/migrate';
+import { ProjectFormatError } from '../io/projectFile';
+import { serializeProject3D } from '../io/projectFile3d';
 import { shareUrl3D } from '../io/share3d';
 import { emptyProject3D } from '../model3d';
-import { notify } from '../ui/toast';
-import { useWorkspace, WorkspaceSwitch } from '../ui/workspace';
+import { notify } from './toast';
 import { fieldTitle, slug } from './format3d';
 import { useStore3D } from './store';
 
@@ -30,21 +30,19 @@ const CATEGORIES = ['Frames', 'Trusses', 'Plates', 'Solids', 'Mixed', PLANE_CATE
 
 export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
   const { state, dispatch, solution, extras } = useStore3D();
-  const { open2D } = useWorkspace();
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const project = state.project;
 
   const openFile = async (file: File) => {
     try {
-      const text = await file.text();
-      if (detectProjectKind(text) === '2d') {
-        // A plane-frame file belongs to the 2D workspace.
-        open2D(parseProjectText(text));
-        return;
-      }
-      dispatch({ type: 'load', project: parseProject3DText(text) });
-      notify(`Opened ${file.name}`);
+      const opened = openProjectText(await file.text());
+      dispatch({ type: 'load', project: opened.project });
+      notify(
+        opened.converted
+          ? `Opened the 2D model ${file.name}, converted to a plane frame.`
+          : `Opened ${file.name}`,
+      );
     } catch (e) {
       notify(e instanceof ProjectFormatError ? e.message : 'Could not read that file.', 'error');
     }
@@ -74,7 +72,7 @@ export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
     try {
       // The PDF library is loaded on demand so it does not slow down the first page load.
       const [{ buildReport3D, reportFileName }, link] = await Promise.all([
-        import('../io/report3d'),
+        import('../io/report'),
         shareUrl3D(project, window.location.href).catch(() => undefined),
       ]);
       // Plates and solids: add a picture of the live view (contour plots are raster only).
@@ -118,7 +116,6 @@ export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
         </svg>
         <span>FrameForge</span>
       </div>
-      <WorkspaceSwitch />
       <select
         className="example-picker"
         aria-label="Load a 3D example"
@@ -164,7 +161,7 @@ export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
         <button
           type="button"
           className="ghost"
-          title="Open a saved .json model (2D files open in the 2D workspace)"
+          title="Open a saved .json model (older 2D files open as plane frames)"
           onClick={() => fileInput.current?.click()}
         >
           Open

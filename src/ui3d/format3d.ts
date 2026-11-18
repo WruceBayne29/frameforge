@@ -7,9 +7,9 @@ import type {
   Restraints6,
 } from '../model3d';
 import type { AnalysisResult3D } from '../solver3d';
-import { fmt } from '../ui/format';
+import { fmt } from './format';
 
-export { fmt, mm } from '../ui/format';
+export { fmt, mm } from './format';
 
 export const DIAGRAMS_3D: Array<{ id: DiagramKind3D; label: string; title: string; unit: string }> =
   [

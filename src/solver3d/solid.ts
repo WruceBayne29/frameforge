@@ -49,8 +49,8 @@
  * direction of the variation; refine the mesh in that direction. Nodal stresses are element
  * values and are not averaged between neighbouring elements.
  */
-import { SolverError } from '../solver/errors';
-import { zeros } from '../solver/linalg';
+import { SolverError } from './errors';
+import { zeros } from './linalg';
 import type { ElementMatrices } from './contract';
 import { cross, GAUSS2, invert, norm, principal3, sub, vonMises3 } from './math';
 import type { Solid3D, SolidFaceLoad3D, SolidResult3D, StressState, Vec3 } from './types';

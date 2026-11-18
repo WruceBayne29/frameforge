@@ -189,6 +189,11 @@ export interface DiagramGeometry {
   labels: Label[];
   /** Largest absolute value drawn. */
   peak: number;
+  /**
+   * Members whose axial force is constant, drawn on the member itself (plane frames only, as
+   * the 2D app did): bands offset sideways overlap unreadably in a truss.
+   */
+  bars: Array<{ id: string; value: number; from: Vec3; to: Vec3 }>;
 }
 
 /**
@@ -205,6 +210,8 @@ export function memberDiagram(
   maxLabels = 16,
 ): DiagramGeometry {
   const pos = nodePositions(project);
+  const bars: DiagramGeometry['bars'] = [];
+  const onMember = kind === 'N' && isPlane(project);
   const positive: number[] = [];
   const negative: number[] = [];
   const outline: number[] = [];
@@ -240,6 +247,14 @@ export function memberDiagram(
     }
     peak = Math.max(peak, Math.abs(best));
     if (Math.abs(best) < 1e-9) continue;
+    if (onMember && r.stations.every((st) => Math.abs(st.N - best) <= 1e-6 * Math.abs(best))) {
+      const to = base(r.length);
+      bars.push({ id: m.id, value: best, from: start, to });
+      // Label beside the middle of the member.
+      const side = scale(r.axes.y, (r.axes.x[0] >= 0 ? 1 : -1) * 0.035 * r.length);
+      peaks.push({ id: m.id, value: best, position: add(base(r.length / 2), side) });
+      continue;
+    }
 
     const quad = (x0: number, v0: number, x1: number, v1: number) => {
       const target = v0 + v1 >= 0 ? positive : negative;
@@ -284,6 +299,7 @@ export function memberDiagram(
     outline: new Float32Array(outline),
     labels,
     peak,
+    bars,
   };
 }
 

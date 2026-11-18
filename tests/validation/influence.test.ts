@@ -6,9 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { EXAMPLES } from '../../src/examples';
-import { defaultLoadPath } from '../../src/ui/store';
 import { toSolverModel } from '../../src/model';
-import { from2D, influenceProject3D } from '../../src/model3d';
+import { defaultLoadPath3D, from2D, influenceProject3D } from '../../src/model3d';
 import { influenceLine } from '../../src/solver';
 import type { InfluenceTarget } from '../../src/solver';
 import { planeTarget } from './plane2d';
@@ -21,7 +20,8 @@ describe('influence lines in plane frame mode reproduce the 2D app', () => {
         const project = example.build();
         const model = toSolverModel(project);
         const plane = from2D(project);
-        const path = defaultLoadPath(project);
+        // The app's load path: the beams (near-horizontal members), as in the 2D app.
+        const path = defaultLoadPath3D(plane);
         const lengths = new Map(
           model.members.map((m) => {
             const a = model.nodes.find((n) => n.id === m.i)!;
