@@ -134,7 +134,12 @@
           "maxLength": 200,
           "examples": ["ISMB 300"]
         },
-        "material": { "description": "Material name.", "type": "string", "minLength": 1, "maxLength": 200 },
+        "material": {
+          "description": "Material name.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "beta": {
           "description": "Roll angle about the member axis, degrees. With 0, local z is horizontal and local y points up (for a vertical member local z is global Z), so an upright I-section bends about its major axis under gravity.",
           "type": "number",
@@ -142,8 +147,16 @@
         },
         "releaseI": { "$ref": "#/$defs/release" },
         "releaseJ": { "$ref": "#/$defs/release" },
-        "kz": { "description": "IS 800 effective length factor, major axis (overrides design.kz).", "type": "number", "exclusiveMinimum": 0 },
-        "ky": { "description": "IS 800 effective length factor, minor axis (overrides design.ky).", "type": "number", "exclusiveMinimum": 0 }
+        "kz": {
+          "description": "IS 800 effective length factor, major axis (overrides design.kz).",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ky": {
+          "description": "IS 800 effective length factor, minor axis (overrides design.ky).",
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
       },
       "examples": [{ "id": "M1", "i": "N1", "j": "N2", "section": "ISMB 300", "type": "beam" }]
     },
@@ -253,7 +266,9 @@
           },
           "required": ["direction", "w1"],
           "anyOf": [{ "required": ["members"] }, { "required": ["member"] }],
-          "examples": [{ "kind": "distributed", "members": ["M2"], "direction": "globalY", "w1": -20 }]
+          "examples": [
+            { "kind": "distributed", "members": ["M2"], "direction": "globalY", "w1": -20 }
+          ]
         },
         {
           "description": "Concentrated force P (kN) on members at a (m from node i).",
@@ -328,8 +343,19 @@
       "properties": {
         "name": { "type": "string", "minLength": 1, "maxLength": 200 },
         "E": { "description": "Young's modulus, GPa.", "type": "number", "exclusiveMinimum": 0 },
-        "nu": { "description": "Poisson's ratio.", "type": "number", "exclusiveMinimum": -1, "exclusiveMaximum": 0.5, "default": 0.3 },
-        "density": { "description": "Weight density, kN/m³.", "type": "number", "minimum": 0, "default": 0 }
+        "nu": {
+          "description": "Poisson's ratio.",
+          "type": "number",
+          "exclusiveMinimum": -1,
+          "exclusiveMaximum": 0.5,
+          "default": 0.3
+        },
+        "density": {
+          "description": "Weight density, kN/m³.",
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        }
       },
       "examples": [{ "name": "Steel", "E": 200, "nu": 0.3, "density": 77 }]
     },
@@ -339,8 +365,16 @@
       "properties": {
         "name": { "type": "string", "minLength": 1, "maxLength": 200 },
         "A": { "description": "Area, cm².", "type": "number", "exclusiveMinimum": 0 },
-        "Iz": { "description": "Second moment of area about local z (major axis), cm⁴.", "type": "number", "exclusiveMinimum": 0 },
-        "Iy": { "description": "Second moment of area about local y (minor axis), cm⁴.", "type": "number", "exclusiveMinimum": 0 },
+        "Iz": {
+          "description": "Second moment of area about local z (major axis), cm⁴.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "Iy": {
+          "description": "Second moment of area about local y (minor axis), cm⁴.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
         "J": { "description": "Torsion constant, cm⁴.", "type": "number", "exclusiveMinimum": 0 }
       },
       "examples": [{ "name": "Box 200", "A": 60, "Iz": 3500, "Iy": 3500, "J": 5200 }]

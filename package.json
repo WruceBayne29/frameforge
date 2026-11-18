@@ -19,7 +19,8 @@
     "validation3d": "WRITE_VALIDATION=1 vitest run tests/validation/validation3d.test.ts",
     "e2e": "node scripts/e2e3d.mjs",
     "e2e3d": "node scripts/e2e3d.mjs",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "analyze": "tsx scripts/analyze.ts"
   },
   "dependencies": {
     "jspdf": "^4.2.1",

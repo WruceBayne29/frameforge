@@ -10,6 +10,9 @@ import { useTheme } from './theme';
 import { notify, Toasts } from './toast';
 import { FIELDS_3D, mm } from './format3d';
 import { Help3D } from './Help3D';
+import { ImportDialog } from './ImportDialog';
+import type { ImportSource } from './ImportDialog';
+import { ApiBridge3D, UrlModel3D } from './Integration3D';
 import { SidePanel3D } from './SidePanel3D';
 import { deleteSelection, PLANE_DIAGRAMS, StoreProvider3D, useStore3D } from './store';
 import type { Tool3D, ViewOptions3D } from './store';
@@ -248,18 +251,47 @@ function Stage3D() {
   );
 }
 
+function Import3D({ source, onClose }: { source: ImportSource | null; onClose: () => void }) {
+  const { dispatch } = useStore3D();
+  return (
+    <ImportDialog
+      initial={source}
+      onClose={onClose}
+      onImport={(project, result) => {
+        dispatch({ type: 'load', project });
+        const warn = result.warnings.length;
+        notify(
+          `Imported "${project.name}": ${project.nodes.length} nodes, ${project.members.length} members` +
+            (warn > 0 ? `, ${warn} warning${warn === 1 ? '' : 's'}.` : '.'),
+        );
+        onClose();
+      }}
+    />
+  );
+}
+
 export default function App3D() {
   const [theme, toggleTheme] = useTheme();
   const [help, setHelp] = useState(false);
+  // false: closed; null: open empty; a source: open with that file.
+  const [importing, setImporting] = useState<ImportSource | null | false>(false);
+  const openImport = useCallback((source: ImportSource | null) => setImporting(source), []);
   const [start] = useState(readStartUp);
   const [initial] = useState(() => start.initial ?? EXAMPLES_3D[0].build());
   const openHelp = useCallback(() => setHelp(true), []);
   return (
     <StoreProvider3D initial={initial}>
       <div className="app app3d">
-        <TopBar3D theme={theme} onToggleTheme={toggleTheme} onHelp={openHelp} />
+        <TopBar3D
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onHelp={openHelp}
+          onImport={openImport}
+        />
         <Shortcuts3D onHelp={openHelp} />
         <Persistence3D start={start} />
+        <ApiBridge3D />
+        <UrlModel3D onProblem={openImport} />
         <div className="main">
           <Toolbar3D />
           <Stage3D />
@@ -268,6 +300,7 @@ export default function App3D() {
         <StatusBar3D />
         <Toasts />
         {help && <Help3D onClose={() => setHelp(false)} />}
+        {importing !== false && <Import3D source={importing} onClose={() => setImporting(false)} />}
       </div>
     </StoreProvider3D>
   );
