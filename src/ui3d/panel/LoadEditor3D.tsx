@@ -1,4 +1,4 @@
-import { deleteLoad, loadTargets, updateLoad, withLoadTargets } from '../../model3d';
+import { deleteLoad, isPlane, loadTargets, updateLoad, withLoadTargets } from '../../model3d';
 import type {
   GlobalDirection,
   MemberLoadDirection,
@@ -84,6 +84,15 @@ export function LoadEditor3D({ load }: { load: ProjectLoad3D }) {
   );
   const targets = loadTargets(load);
   const known = knownIds(project, load);
+  // Plane frame mode shows only the in-plane components and directions (an existing
+  // out-of-plane value stays visible so it can be cleared).
+  const plane = isPlane(project);
+  const memberDirections = plane
+    ? MEMBER_DIRECTIONS.filter(
+        (d) => !d.endsWith('Z') || ('direction' in load && load.direction === d),
+      )
+    : MEMBER_DIRECTIONS;
+  const outOfPlane = (value: number) => !plane || value !== 0;
 
   return (
     <div
@@ -132,15 +141,15 @@ export function LoadEditor3D({ load }: { load: ProjectLoad3D }) {
           <>
             {num('Fx (kN)', load.fx, (fx) => patch({ fx }))}
             {num('Fy (kN)', load.fy, (fy) => patch({ fy }))}
-            {num('Fz (kN)', load.fz, (fz) => patch({ fz }))}
-            {num('Mx (kN·m)', load.mx, (mx) => patch({ mx }))}
-            {num('My (kN·m)', load.my, (my) => patch({ my }))}
+            {outOfPlane(load.fz) && num('Fz (kN)', load.fz, (fz) => patch({ fz }))}
+            {outOfPlane(load.mx) && num('Mx (kN·m)', load.mx, (mx) => patch({ mx }))}
+            {outOfPlane(load.my) && num('My (kN·m)', load.my, (my) => patch({ my }))}
             {num('Mz (kN·m)', load.mz, (mz) => patch({ mz }))}
           </>
         )}
         {load.kind === 'distributed' && (
           <>
-            {direction(load.direction, MEMBER_DIRECTIONS, DIRECTION_LABEL)}
+            {direction(load.direction, memberDirections, DIRECTION_LABEL)}
             {num('w start (kN/m)', load.w1, (w1) => patch({ w1 }))}
             {num('w end (kN/m)', load.w2 ?? load.w1, (w2) => patch({ w2 }))}
             {num('From (m)', load.a ?? 0, (a) => patch({ a }), { min: 0 })}
@@ -149,7 +158,7 @@ export function LoadEditor3D({ load }: { load: ProjectLoad3D }) {
         )}
         {load.kind === 'point' && (
           <>
-            {direction(load.direction, MEMBER_DIRECTIONS, DIRECTION_LABEL)}
+            {direction(load.direction, memberDirections, DIRECTION_LABEL)}
             {num('P (kN)', load.P, (P) => patch({ P }))}
             {num('At (m from node i)', load.a, (a) => patch({ a }), { min: 0 })}
           </>

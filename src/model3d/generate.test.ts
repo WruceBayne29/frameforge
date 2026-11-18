@@ -5,10 +5,12 @@ import { toSolverModel } from '../model';
 import type { Project } from '../model/types';
 import { analyze } from '../solver';
 import { analyze3d } from '../solver3d';
+import type { AnalysisResult3D } from '../solver3d';
+import { analyzeProject3D } from './analysis';
 import { toSolverModel3D } from './convert';
 import { addLoad, addNode } from './edit';
-import { BLOCK_FACE, from2D, gridFrame, plateMesh, solidBlock } from './generate';
-import { emptyProject3D, FIXED_SUPPORT, PINNED_SUPPORT } from './types';
+import { BLOCK_FACE, from2D, gridFrame, plateMesh, solidBlock, STEEL_MASS_2D } from './generate';
+import { emptyProject3D, FIXED_SUPPORT, GRAVITY, PINNED_SUPPORT } from './types';
 import type { Project3D } from './types';
 
 const nodeOf = (p: Project3D, id: string) => {
@@ -352,9 +354,17 @@ describe('solidBlock', () => {
 // ---------------------------------------------------------------------------------------
 
 function compare(project: Project): { warnings: string[] } {
-  const r2 = analyze(toSolverModel(project));
   const converted = from2D(project);
-  const r3 = analyze3d(toSolverModel3D(converted));
+  expect(converted.plane).toBe('XY');
+  // Without the plane restraint the supports alone hold the model out of plane.
+  const free: Project3D = { ...converted };
+  delete free.plane;
+  compareWith(project, analyze3d(toSolverModel3D(free)));
+  return compareWith(project, analyzeProject3D(converted));
+}
+
+function compareWith(project: Project, r3: AnalysisResult3D): { warnings: string[] } {
+  const r2 = analyze(toSolverModel(project));
 
   // Largest translation anywhere (nodes and along members) sets the comparison scale.
   const scaleU = r2.maxDisplacement;
@@ -451,7 +461,13 @@ describe('from2D', () => {
       selfWeight: false,
     });
     expect(p3.design.grade).toBe('E350');
-    expect(p3.materials[0]).toEqual({ name: 'Steel', E: 210, nu: 0.3, density: 77 });
+    expect(p3.plane).toBe('XY');
+    expect(p3.materials[0]).toEqual({
+      name: 'Steel',
+      E: 210,
+      nu: 0.3,
+      density: STEEL_MASS_2D * GRAVITY,
+    });
     expect(p3.customSections).toEqual([{ name: 'Box', A: 80, Iz: 7000, Iy: 7000, J: 7000 }]);
     expect(p3.nodes.every((n) => n.z === 0)).toBe(true);
     expect(p3.members).toEqual([

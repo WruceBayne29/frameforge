@@ -1,5 +1,6 @@
+import { isPlane } from '../model3d';
 import { DIAGRAMS_3D, FIELDS_3D } from './format3d';
-import { useStore3D } from './store';
+import { PLANE_DIAGRAMS, useStore3D } from './store';
 import type { CameraPreset, ViewOptions3D } from './store';
 
 type Toggle = 'deformed' | 'reactions' | 'loads' | 'supports' | 'labels' | 'grid';
@@ -18,6 +19,8 @@ export function ViewBar3D({ onImage }: { onImage: () => void }) {
   const { state, dispatch } = useStore3D();
   const v = state.view;
   const { members, plates, solids } = state.project;
+  const plane = isPlane(state.project);
+  const diagrams = plane ? DIAGRAMS_3D.filter((d) => PLANE_DIAGRAMS.includes(d.id)) : DIAGRAMS_3D;
   const set = (view: Partial<ViewOptions3D>) => dispatch({ type: 'view', view });
   const groups = [
     { name: 'All', show: plates.length + solids.length > 0 },
@@ -37,11 +40,11 @@ export function ViewBar3D({ onImage }: { onImage: () => void }) {
           >
             None
           </button>
-          {DIAGRAMS_3D.map((d, k) => (
+          {diagrams.map((d) => (
             <button
               key={d.id}
               type="button"
-              title={`${d.title}, ${d.unit} (${k + 1})`}
+              title={`${d.title}, ${d.unit} (${DIAGRAMS_3D.indexOf(d) + 1})`}
               className={v.diagram === d.id ? 'active' : ''}
               aria-pressed={v.diagram === d.id}
               onClick={() => set({ diagram: d.id })}
@@ -103,10 +106,17 @@ const PRESETS: Array<{ id: CameraPreset; label: string; title: string }> = [
 ];
 
 export function ViewPresets() {
-  const { dispatch } = useStore3D();
+  const { state, dispatch } = useStore3D();
+  // Plane frame mode keeps the orthographic front view; only "Fit" applies.
+  const presets = isPlane(state.project) ? PRESETS.filter((p) => p.id === 'fit') : PRESETS;
   return (
     <div className="viewer-presets" role="group" aria-label="Camera">
-      {PRESETS.map((p) => (
+      {isPlane(state.project) && (
+        <span className="plane-badge" title="Plane frame mode: XY plane, front view">
+          Plane XY
+        </span>
+      )}
+      {presets.map((p) => (
         <button
           key={p.id}
           type="button"

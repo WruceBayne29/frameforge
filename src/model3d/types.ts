@@ -178,6 +178,13 @@ export type ProjectLoad3D =
   | PlatePointLoad3P
   | SolidFaceLoad3P;
 
+/**
+ * Plane in which a "plane frame" project lies. With `plane: 'XY'` every node is held out of
+ * plane (uz, rx, ry) by the solver model, so the structure behaves exactly like a 2D frame or
+ * truss; these restraints are not shown as supports or reactions.
+ */
+export type ProjectPlane = 'XY';
+
 export interface Project3D {
   version: 1;
   /** Distinguishes 3D projects from 2D ones in files and share links. */
@@ -195,7 +202,12 @@ export interface Project3D {
   /** Include the self-weight of every element (gravity along −Y). */
   selfWeight: boolean;
   design: DesignSettings;
+  /** Plane frame mode: the structure lies in the z = 0 plane and only moves in it. */
+  plane?: ProjectPlane;
 }
+
+/** Standard gravity, m/s². Mass density (t/m³) = weight density (kN/m³) / GRAVITY. */
+export const GRAVITY = 9.80665;
 
 export const STEEL: Material3D = { name: 'Steel', E: 200, nu: 0.3, density: 77 };
 export const CONCRETE: Material3D = { name: 'Concrete M25', E: 25, nu: 0.2, density: 25 };

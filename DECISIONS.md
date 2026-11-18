@@ -103,3 +103,19 @@ members".
     Jacobian determinant at one corner (positive at all Gauss points), and FrameForge rejects any
     element whose Jacobian is not positive at its corners. The check was left as it is; the
     MacNeal–Harder strain field and material are used on a mesh FrameForge accepts.
+
+### One 3D app (branch `feat/3d-only`)
+
+36. **Plane frame mode is a project setting, not a separate solver.** `plane: 'XY'` adds the
+    restraint uz = rx = ry = 0 at every node of the solver model, so plane frames run through
+    the same 3D solver users run for everything else. The restraint is not stored as supports
+    and `analyzeProject3D` drops it from the reactions; out-of-plane loads trigger a warning.
+    The 2D solver stays in the repo only as a test reference. Agreement is checked at every
+    station to 1e-8 relative; for the two portal cases that idealise members as axially rigid
+    (A = 10⁴ m², axial/bending stiffness ratio ~10⁹) round-off limits agreement to ~10⁻⁷, so
+    the test scales the tolerance by 10⁻¹⁵ × that ratio instead of hiding the cases.
+37. **`from2D` gives steel a weight density of 7.85 t/m³ × 9.80665 = 76.98 kN/m³.** The 2D
+    app's modal analysis used 7.85 t/m³; matching it makes converted frequencies identical.
+    New 3D models keep 77 kN/m³.
+38. **Node dragging only in plane frame mode.** In 3D a screen drag has no unique plane to move
+    on; in plane mode it moves over z = 0 with the snap grid, one undo step per drag.

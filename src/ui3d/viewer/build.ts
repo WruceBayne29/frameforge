@@ -7,6 +7,7 @@
 import {
   colorMap,
   fieldFraction,
+  isPlane,
   loadTargets,
   withLoadTargets,
   type DiagramKind3D,
@@ -411,12 +412,25 @@ export interface Glyph {
 export function supportGlyphs(project: Project3D): Glyph[] {
   const pos = nodePositions(project);
   const glyphs: Glyph[] = [];
+  const plane = isPlane(project);
   for (const s of project.supports) {
     const p = pos.get(s.node);
     if (!p) continue;
     const [ux, uy, uz, rx, ry, rz] = s.restraints;
     const g = (shape: GlyphShape, direction: Vec3) =>
       glyphs.push({ shape, node: s.node, position: p, direction });
+    if (plane) {
+      // The 2D symbols: fixed base, pin, or a pin on a roller pointing at the held direction.
+      if (ux && uy && rz) g('base', [0, 1, 0]);
+      else if (ux && uy) g('pyramid', [0, 1, 0]);
+      else if (uy || ux) {
+        const d: Vec3 = uy ? [0, 1, 0] : [1, 0, 0];
+        g('pyramid', d);
+        g('roller', d);
+        if (rz) g('cube', [0, 1, 0]);
+      } else if (rz) g('cube', [0, 1, 0]);
+      continue;
+    }
     if (s.restraints.every(Boolean)) {
       g('base', [0, 1, 0]);
       continue;
@@ -708,13 +722,30 @@ export function reactionArrows(
   }
   const arrows: Arrow[] = [];
   const candidates: Array<{ label: Label; value: number }> = [];
+  // Plane frame mode: in-plane components only; a moment about Z would point at the viewer,
+  // so it is shown as a label beside the node instead of an arrow.
+  const plane = isPlane(project);
+  const components = plane
+    ? COMPONENTS.filter((c) => c.key === 'fx' || c.key === 'fy' || c.key === 'mz')
+    : COMPONENTS;
   for (const [node, r] of Object.entries(result.reactions)) {
     const p = pos.get(node);
     if (!p) continue;
-    for (const c of COMPONENTS) {
+    for (const c of components) {
       const value = r[c.key];
       const largest = c.moment ? maxMoment : maxForce;
       if (!(Math.abs(value) > 1e-6 * Math.max(largest, 1e-9)) || Math.abs(value) < 1e-9) continue;
+      if (plane && c.key === 'mz') {
+        candidates.push({
+          label: {
+            position: add(p, [arrow * 0.45, arrow * 0.3, 0]),
+            text: `Mz ${fmt(value)}`,
+            kind: 'reaction',
+          },
+          value: Math.abs(value) / largest,
+        });
+        continue;
+      }
       const direction = scale(c.axis as unknown as Vec3, Math.sign(value));
       const l = arrow * (0.45 + (0.55 * Math.abs(value)) / largest) * (c.moment ? 0.8 : 1);
       const tip = c.moment ? add(p, scale(direction, l)) : sub(p, scale(direction, gap));
@@ -818,6 +849,11 @@ export interface GridSpec {
   spacing: number;
   /** Every n-th line is drawn stronger. */
   majorEvery: number;
+  /**
+   * `XY`: a vertical grid in the z = 0 plane (plane frame mode), centred on (cx, cz) read as
+   * (x, y); `y` is then ignored. Default: a horizontal grid at height `y`.
+   */
+  plane?: 'XZ' | 'XY';
 }
 
 /** Grid lines as segments: [minor, major]. */
@@ -831,8 +867,13 @@ export function gridSegments(spec: GridSpec): [Float32Array, Float32Array] {
   for (let k = -n; k <= n; k++) {
     const target = k % spec.majorEvery === 0 ? major : minor;
     const d = k * spec.spacing;
-    target.push(x0 + d, spec.y, z0 - h, x0 + d, spec.y, z0 + h);
-    target.push(x0 - h, spec.y, z0 + d, x0 + h, spec.y, z0 + d);
+    if (spec.plane === 'XY') {
+      target.push(x0 + d, z0 - h, 0, x0 + d, z0 + h, 0);
+      target.push(x0 - h, z0 + d, 0, x0 + h, z0 + d, 0);
+    } else {
+      target.push(x0 + d, spec.y, z0 - h, x0 + d, spec.y, z0 + h);
+      target.push(x0 - h, spec.y, z0 + d, x0 + h, spec.y, z0 + d);
+    }
   }
   return [new Float32Array(minor), new Float32Array(major)];
 }

@@ -19,7 +19,7 @@ describe('3D example library', () => {
     expect(EXAMPLES_3D.length).toBeGreaterThanOrEqual(9);
     expect(new Set(EXAMPLES_3D.map((e) => e.id)).size).toBe(EXAMPLES_3D.length);
     expect(new Set(EXAMPLES_3D.map((e) => e.category))).toEqual(
-      new Set(['Trusses', 'Frames', 'Plates', 'Solids', 'Mixed']),
+      new Set(['Trusses', 'Frames', 'Plates', 'Solids', 'Mixed', '2D frames & trusses']),
     );
     expect(getExample3D('tower-25-bar')).toBeDefined();
     expect(getExample3D('nope')).toBeUndefined();

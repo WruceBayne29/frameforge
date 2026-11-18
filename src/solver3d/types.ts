@@ -85,6 +85,8 @@ export interface Member3D {
   releaseJ?: EndRelease;
   /** Weight per unit volume, used by `selfWeight` loads. */
   density?: number;
+  /** Mass per unit volume, used by modal analysis. */
+  mass?: number;
 }
 
 /**
@@ -102,6 +104,8 @@ export interface Plate3D {
   t: number;
   /** Weight per unit volume, used by `selfWeight` loads. */
   density?: number;
+  /** Mass per unit volume, used by modal analysis. */
+  mass?: number;
 }
 
 /**
@@ -116,6 +120,8 @@ export interface Solid3D {
   nu: number;
   /** Weight per unit volume, used by `selfWeight` loads. */
   density?: number;
+  /** Mass per unit volume, used by modal analysis. */
+  mass?: number;
 }
 
 /** Direction of a member load: along a local member axis or a global axis. */

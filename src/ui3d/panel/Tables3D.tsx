@@ -3,6 +3,7 @@ import {
   addLoad,
   addMember,
   addNode,
+  isPlane,
   deleteLoad,
   deleteMember,
   deleteNode,
@@ -27,8 +28,8 @@ import type {
 import { defaultLoad } from '../edits';
 import { MaterialSelect, NumberField, SectionSelect3D, TextField } from '../fields3d';
 import { fmt, loadSummary3D, loadValueText, parseIdList } from '../format3d';
-import { isSelected } from '../state';
-import type { SelectionKind } from '../state';
+import { applySupport, isSelected, presetOf } from '../state';
+import type { SelectionKind, SupportPreset } from '../state';
 import { useStore3D } from '../store';
 import { usePage } from './Pager';
 
@@ -116,6 +117,8 @@ function NodesTable({ edit, rowProps }: TableProps) {
   const { state, dispatch } = useStore3D();
   const project = state.project;
   const { rows, pager } = usePage(project.nodes);
+  const plane = isPlane(project);
+  const axes = plane ? (['x', 'y'] as const) : (['x', 'y', 'z'] as const);
   return (
     <>
       <div className="table-scroll">
@@ -123,9 +126,9 @@ function NodesTable({ edit, rowProps }: TableProps) {
           <thead>
             <tr>
               <th>Node</th>
-              <th>X (m)</th>
-              <th>Y (m)</th>
-              <th>Z (m)</th>
+              {axes.map((a) => (
+                <th key={a}>{a.toUpperCase()} (m)</th>
+              ))}
               <th />
             </tr>
           </thead>
@@ -133,7 +136,7 @@ function NodesTable({ edit, rowProps }: TableProps) {
             {rows.map((n) => (
               <tr key={n.id} {...rowProps('node', n.id)}>
                 <td>{n.id}</td>
-                {(['x', 'y', 'z'] as const).map((axis) => (
+                {axes.map((axis) => (
                   <td key={axis}>
                     <NumberField
                       value={n[axis]}
@@ -444,6 +447,7 @@ function SupportsTable({ edit }: { edit: (project: Project3D) => void }) {
   const project = state.project;
   const { rows, pager } = usePage(project.supports);
   const free = project.nodes.find((n) => !project.supports.some((s) => s.node === n.id));
+  if (isPlane(project)) return <PlaneSupportsTable edit={edit} />;
   return (
     <>
       <div className="table-scroll">
@@ -483,6 +487,73 @@ function SupportsTable({ edit }: { edit: (project: Project3D) => void }) {
                 </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+      {pager}
+      <button
+        type="button"
+        disabled={!free}
+        onClick={() => free && edit(setSupport(project, free.id, FIXED_SUPPORT))}
+      >
+        + Add support{free ? ` at ${free.id}` : ''}
+      </button>
+    </>
+  );
+}
+
+/** Plane frame mode: one 2D support kind per node (fixed, pinned, roller X, roller Y). */
+function PlaneSupportsTable({ edit }: { edit: (project: Project3D) => void }) {
+  const { state } = useStore3D();
+  const project = state.project;
+  const { rows, pager } = usePage(project.supports);
+  const free = project.nodes.find((n) => !project.supports.some((s) => s.node === n.id));
+  return (
+    <>
+      <div className="table-scroll">
+        <table className="data editable compact" aria-label="Supports">
+          <thead>
+            <tr>
+              <th>Node</th>
+              <th>Type</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => {
+              const preset = presetOf(s.restraints, true);
+              return (
+                <tr key={s.node}>
+                  <td>{s.node}</td>
+                  <td>
+                    <select
+                      aria-label={`Support type at ${s.node}`}
+                      value={preset}
+                      onChange={(e) =>
+                        edit(
+                          applySupport(project, [s.node], {
+                            supportPreset: e.target.value as SupportPreset,
+                            restraints: s.restraints,
+                          }),
+                        )
+                      }
+                    >
+                      <option value="fixed">Fixed</option>
+                      <option value="pinned">Pinned</option>
+                      <option value="rollerX">Roller (rolls along X)</option>
+                      <option value="rollerY">Roller (rolls along Y)</option>
+                      {preset === 'custom' && <option value="custom">Custom</option>}
+                    </select>
+                  </td>
+                  <td>
+                    <DeleteButton
+                      label={`Remove support at ${s.node}`}
+                      onClick={() => edit(setSupport(project, s.node, null))}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

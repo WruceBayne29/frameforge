@@ -501,3 +501,30 @@ export function mergeCoincidentNodes(project: Project3D, tolerance = NODE_TOLERA
   loads = remapLoads(loads, 'solids', dropFrom(removedSolids));
   return { ...project, nodes: kept, members, plates, solids, supports, loads };
 }
+
+// ---- Plane frame mode ---------------------------------------------------------------------
+
+/** Nodes that keep a project from being a plane frame: those off the z = 0 plane. */
+export function nodesOffPlane(project: Project3D, tol = NODE_TOLERANCE): string[] {
+  return project.nodes.filter((n) => Math.abs(n.z) > tol).map((n) => n.id);
+}
+
+/**
+ * Switches plane frame mode on or off. Turning it on needs every node on the z = 0 plane
+ * (returns null otherwise); nodes within the tolerance are moved exactly onto it.
+ */
+export function setPlaneMode(project: Project3D, on: boolean): Project3D | null {
+  if (!on) {
+    if (project.plane === undefined) return project;
+    const next = { ...project };
+    delete next.plane;
+    return next;
+  }
+  if (project.plane === 'XY') return project;
+  if (nodesOffPlane(project).length > 0) return null;
+  return {
+    ...project,
+    plane: 'XY',
+    nodes: project.nodes.map((n) => (n.z === 0 ? n : { ...n, z: 0 })),
+  };
+}

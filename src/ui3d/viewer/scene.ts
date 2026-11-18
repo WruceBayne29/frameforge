@@ -10,6 +10,7 @@ import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import {
+  isPlane,
   modelBounds3D,
   modelSize3D,
   nodalField,
@@ -80,6 +81,13 @@ export interface ViewerCallbacks {
   onClick: (hit: PointerHit, additive: boolean) => void;
   /** Pointer moved over the scene (throttled to animation frames). */
   onHover?: (hit: PointerHit) => void;
+  /**
+   * Node dragging (plane frame mode, select tool): the drag starts on a node and moves it
+   * over the z = 0 plane, snapped like the drawing tools.
+   */
+  onDragStart?: (node: string) => void;
+  onDrag?: (node: string, point: Vec3) => void;
+  onDragEnd?: (node: string) => void;
 }
 
 type LayerName =
@@ -147,7 +155,15 @@ export class ViewerEngine {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly labelRenderer: CSS2DRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(40, 1, 0.01, 1000);
+  private readonly perspective = new THREE.PerspectiveCamera(40, 1, 0.01, 1000);
+  private readonly ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 1000);
+  /** The active camera: orthographic front view in plane frame mode, perspective otherwise. */
+  private camera: THREE.PerspectiveCamera | THREE.OrthographicCamera = this.perspective;
+  /** Half the height of the orthographic view at zoom 1. */
+  private orthoHalf = 5;
+  private plane = false;
+  private drag: { node: string; moved: boolean; frame: number; last: PointerEvent | null } | null =
+    null;
   private readonly controls: OrbitControls;
   private readonly groups = {} as Record<LayerName, THREE.Group>;
   private readonly deps: Partial<Record<LayerName, unknown[]>> = {};
@@ -185,10 +201,12 @@ export class ViewerEngine {
     container.appendChild(this.labelRenderer.domElement);
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8090a0, 1.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-    sun.position.set(0.4, 1, 0.6);
-    this.camera.add(sun);
-    this.scene.add(this.camera);
+    for (const camera of [this.perspective, this.ortho]) {
+      const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+      sun.position.set(0.4, 1, 0.6);
+      camera.add(sun);
+      this.scene.add(camera);
+    }
     for (const name of LAYERS) {
       const group = new THREE.Group();
       group.name = name;
@@ -231,9 +249,10 @@ export class ViewerEngine {
       this.renderer.setClearColor(color(palette.background));
       this.buildTriad(palette);
     }
+    this.setPlaneMode(isPlane(project));
     const plane = usesPlane(input.tool);
     const o = input.toolOptions;
-    this.layer('grid', [project, plane, o.elevation, o.grid, view.grid, palette], () =>
+    this.layer('grid', [project, plane, o.elevation, o.grid, view.grid, palette, this.plane], () =>
       this.buildGrid(),
     );
     this.layer(
@@ -293,10 +312,56 @@ export class ViewerEngine {
     this.requestRender();
   }
 
+  /** Switches between the free 3D view and the locked orthographic front view. */
+  private setPlaneMode(plane: boolean): void {
+    if (plane === this.plane) return;
+    this.plane = plane;
+    this.camera = plane ? this.ortho : this.perspective;
+    this.controls.object = this.camera;
+    this.controls.enableRotate = !plane;
+    this.setCamera(plane ? 'front' : 'iso');
+  }
+
+  /** Fits the orthographic front view to the model (plane frame mode). */
+  private fitOrtho(bounds: { min: number[]; max: number[] }): void {
+    const aspect = this.width / Math.max(this.height, 1);
+    const cx = (bounds.min[0] + bounds.max[0]) / 2;
+    const cy = (bounds.min[1] + bounds.max[1]) / 2;
+    const w = bounds.max[0] - bounds.min[0];
+    const h = bounds.max[1] - bounds.min[1];
+    // Margins leave room for supports, reaction arrows and diagram labels around the frame.
+    const margin = 0.14 * Math.max(w, h, 1);
+    this.orthoHalf = Math.max(h / 2 + margin, (w / 2 + margin) / aspect, 1);
+    const depth = Math.max(w, h, 10) * 4;
+    this.ortho.position.set(cx, cy, depth);
+    this.ortho.near = depth / 100;
+    this.ortho.far = depth * 4;
+    this.ortho.zoom = 1;
+    this.updateOrthoFrustum();
+    this.controls.target.set(cx, cy, 0);
+    this.controls.update();
+    this.requestRender();
+  }
+
+  private updateOrthoFrustum(): void {
+    const aspect = this.width / Math.max(this.height, 1);
+    this.ortho.top = this.orthoHalf;
+    this.ortho.bottom = -this.orthoHalf;
+    this.ortho.left = -this.orthoHalf * aspect;
+    this.ortho.right = this.orthoHalf * aspect;
+    this.ortho.updateProjectionMatrix();
+  }
+
   /** Points the camera along a preset direction (or keeps the direction for "fit") and fits the model. */
   setCamera(preset: CameraPreset): void {
     const project = this.input?.project;
     const bounds = project ? modelBounds3D(project) : { min: [-2, 0, -2], max: [10, 6, 10] };
+    if (this.plane) {
+      // Plane frame mode: always the front view; every preset just fits it.
+      this.fitOrtho(bounds);
+      return;
+    }
+    const camera = this.perspective;
     const center = new THREE.Vector3(
       (bounds.min[0] + bounds.max[0]) / 2,
       (bounds.min[1] + bounds.max[1]) / 2,
@@ -313,16 +378,16 @@ export class ViewerEngine {
     );
     const direction =
       preset === 'fit'
-        ? this.camera.position.clone().sub(this.controls.target).normalize()
+        ? camera.position.clone().sub(this.controls.target).normalize()
         : new THREE.Vector3(...CAMERA_DIRECTIONS[preset]).normalize();
     if (direction.lengthSq() === 0) direction.set(1, 0.75, 1.25).normalize();
-    const vertical = THREE.MathUtils.degToRad(this.camera.fov) / 2;
-    const horizontal = Math.atan(Math.tan(vertical) * this.camera.aspect);
+    const vertical = THREE.MathUtils.degToRad(camera.fov) / 2;
+    const horizontal = Math.atan(Math.tan(vertical) * camera.aspect);
     const distance = (radius * 1.12) / Math.sin(Math.min(vertical, horizontal));
-    this.camera.position.copy(center).addScaledVector(direction, distance);
-    this.camera.near = distance / 200;
-    this.camera.far = distance * 200;
-    this.camera.updateProjectionMatrix();
+    camera.position.copy(center).addScaledVector(direction, distance);
+    camera.near = distance / 200;
+    camera.far = distance * 200;
+    camera.updateProjectionMatrix();
     this.controls.target.copy(center);
     this.controls.update();
     this.requestRender();
@@ -439,8 +504,9 @@ export class ViewerEngine {
     this.height = height;
     this.renderer.setSize(width, height);
     this.labelRenderer.setSize(width, height);
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
+    this.perspective.aspect = width / height;
+    this.perspective.updateProjectionMatrix();
+    this.updateOrthoFrustum();
     for (const m of this.lineMaterials) m.resolution.set(width, height);
     this.renderNow();
   }
@@ -671,6 +737,27 @@ export class ViewerEngine {
     const plane = usesPlane(input.tool);
     if (!view.grid && !plane) return [];
     const bounds = modelBounds3D(project);
+    if (this.plane) {
+      // Plane frame mode: the drawing grid lies in the z = 0 plane, at the snap spacing.
+      const size2 = Math.max(bounds.max[0] - bounds.min[0], bounds.max[1] - bounds.min[1], 4);
+      let step = o.snap ? o.grid : niceSpacing(size2, 16);
+      const extent = Math.max(size2 * 0.9, 6 * step, 5);
+      while (extent / step > 120) step *= 2;
+      const every = Math.max(1, Math.round(niceSpacing(size2, 10) / step));
+      const [minor2, major2] = gridSegments({
+        cx: (bounds.min[0] + bounds.max[0]) / 2,
+        cz: (bounds.min[1] + bounds.max[1]) / 2,
+        half: Math.ceil(extent / (step * every)) * step * every,
+        y: 0,
+        spacing: step,
+        majorEvery: every,
+        plane: 'XY',
+      });
+      return [
+        this.thinLines(minor2, palette.grid),
+        this.thinLines(major2, palette.gridMajor),
+      ].filter((x): x is THREE.LineSegments => !!x);
+    }
     const size = modelSize3D(project);
     let spacing = plane ? o.grid : niceSpacing(size, 16);
     const half = Math.max(size * 0.75, 5 * spacing, 4);
@@ -1082,9 +1169,21 @@ export class ViewerEngine {
     return { pick: null, plane };
   }
 
-  /** Snapped point on the horizontal working plane under the ray. */
+  /**
+   * Snapped point on the working plane under the ray: the horizontal plane at the working
+   * elevation, or the z = 0 plane in plane frame mode.
+   */
   private planePoint(raycaster: THREE.Raycaster): Vec3 | null {
     const o = (this.input as SceneInput).toolOptions;
+    if (this.plane) {
+      const p = raycaster.ray.intersectPlane(
+        new THREE.Plane(new THREE.Vector3(0, 0, 1), 0),
+        new THREE.Vector3(),
+      );
+      if (!p) return null;
+      const step = o.snap ? o.grid : 0;
+      return [snap(p.x, step), snap(p.y, step), 0];
+    }
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -o.elevation);
     const p = raycaster.ray.intersectPlane(plane, new THREE.Vector3());
     if (!p) return null;
@@ -1094,9 +1193,44 @@ export class ViewerEngine {
 
   private readonly onPointerDown = (e: PointerEvent) => {
     this.down = { x: e.clientX, y: e.clientY, time: performance.now() };
+    const input = this.input;
+    if (!this.plane || !input || input.tool !== 'select' || e.button !== 0) return;
+    const hit = this.hitTest(e.clientX, e.clientY, e.pointerType === 'touch');
+    if (hit.pick?.kind !== 'node') return;
+    // Start dragging the node: the view must not pan while it moves.
+    this.drag = { node: hit.pick.id, moved: false, frame: 0, last: null };
+    this.controls.enabled = false;
+    this.renderer.domElement.setPointerCapture?.(e.pointerId);
   };
 
+  /** Moves the dragged node to the plane point under the pointer (once per frame). */
+  private dragTo(e: PointerEvent): void {
+    const drag = this.drag;
+    if (!drag) return;
+    const down = this.down;
+    if (!drag.moved) {
+      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) <= 4) return;
+      drag.moved = true;
+      this.callbacks.onDragStart?.(drag.node);
+    }
+    drag.last = e;
+    if (drag.frame) return;
+    drag.frame = requestAnimationFrame(() => {
+      drag.frame = 0;
+      const last = drag.last;
+      if (!last || this.drag !== drag) return;
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(this.ndc(last.clientX, last.clientY), this.camera);
+      const point = this.planePoint(raycaster);
+      if (point) this.callbacks.onDrag?.(drag.node, point);
+    });
+  }
+
   private readonly onPointerMove = (e: PointerEvent) => {
+    if (this.drag) {
+      this.dragTo(e);
+      return;
+    }
     if (e.pointerType === 'touch') return;
     this.lastPointer = { x: e.clientX, y: e.clientY, type: e.pointerType };
     if (e.buttons !== 0) return;
@@ -1119,6 +1253,22 @@ export class ViewerEngine {
   };
 
   private readonly onPointerUp = (e: PointerEvent) => {
+    const drag = this.drag;
+    if (drag) {
+      this.drag = null;
+      this.controls.enabled = true;
+      cancelAnimationFrame(drag.frame);
+      if (drag.moved) {
+        // Apply the final position, then finish (no click).
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(this.ndc(e.clientX, e.clientY), this.camera);
+        const point = this.planePoint(raycaster);
+        if (point) this.callbacks.onDrag?.(drag.node, point);
+        this.callbacks.onDragEnd?.(drag.node);
+        this.down = null;
+        return;
+      }
+    }
     const down = this.down;
     this.down = null;
     if (!down || e.button !== 0) return;

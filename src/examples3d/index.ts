@@ -1,11 +1,18 @@
+import { EXAMPLES } from '../examples';
+import { from2D } from '../model3d/generate';
 import { FIXED_SUPPORT, PINNED_SUPPORT } from '../model3d/types';
 import type { CustomSection3D, Project3D, Restraints6 } from '../model3d/types';
 import { buildProject3D } from './builder';
 
+export const PLANE_CATEGORY = '2D frames & trusses';
+
+export type ExampleCategory3D =
+  'Trusses' | 'Frames' | 'Plates' | 'Solids' | 'Mixed' | typeof PLANE_CATEGORY;
+
 export interface Example3D {
   id: string;
   name: string;
-  category: 'Trusses' | 'Frames' | 'Plates' | 'Solids' | 'Mixed';
+  category: ExampleCategory3D;
   summary: string;
   build: () => Project3D;
 }
@@ -422,6 +429,14 @@ export const EXAMPLES_3D: Example3D[] = [
     summary: 'Solid footing loaded through an embedded column.',
     build: footing,
   },
+  // The 2D example library, converted to plane-frame projects.
+  ...EXAMPLES.map((e): Example3D => ({
+    id: `plane-${e.id}`,
+    name: e.name,
+    category: PLANE_CATEGORY,
+    summary: e.summary,
+    build: () => from2D(e.build()),
+  })),
 ];
 
 export function getExample3D(id: string): Example3D | undefined {

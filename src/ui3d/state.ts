@@ -10,11 +10,13 @@ import {
   deleteSolid,
   DEFAULT_PLATE_THICKNESS,
   DEFAULT_SECTION_3D,
+  analyzeProject3D,
   FIXED_SUPPORT,
+  isPlane,
   PINNED_SUPPORT,
   ROLLER_SUPPORT,
   setSupport,
-  toSolverModel3D,
+  SUPPORT_2D_RESTRAINTS,
 } from '../model3d';
 import type {
   DiagramKind3D,
@@ -26,7 +28,7 @@ import type {
   Restraints6,
   SolidFace,
 } from '../model3d';
-import { analyze3d, SolverError } from '../solver3d';
+import { SolverError } from '../solver3d';
 import type { AnalysisResult3D } from '../solver3d';
 
 export type Tool3D = 'select' | 'node' | 'member' | 'plate' | 'support' | 'load' | 'delete';
@@ -43,7 +45,21 @@ export interface Pick3D {
   id: string;
 }
 
-export type SupportPreset = 'fixed' | 'pinned' | 'roller' | 'custom' | 'none';
+/**
+ * Support presets. `roller` is the 3D roller (free to slide horizontally in X and Z);
+ * `rollerX` / `rollerY` are the plane-frame rollers that roll along X / Y.
+ */
+export type SupportPreset =
+  'fixed' | 'pinned' | 'roller' | 'rollerX' | 'rollerY' | 'custom' | 'none';
+
+/** Presets offered in plane frame mode (the 2D support kinds). */
+export const PLANE_SUPPORT_PRESETS: readonly SupportPreset[] = [
+  'fixed',
+  'pinned',
+  'rollerX',
+  'rollerY',
+  'none',
+];
 export type LoadToolKind = 'nodal' | 'distributed' | 'point' | 'pressure' | 'face';
 export type CameraPreset = 'iso' | 'top' | 'front' | 'side' | 'fit';
 
@@ -99,6 +115,10 @@ export interface AppState3D {
 export type Action3D =
   | { type: 'load'; project: Project3D }
   | { type: 'edit'; project: Project3D; selection?: Selection3D | null; pending?: string[] }
+  /** Start of a node drag: the current model goes on the undo stack once. */
+  | { type: 'dragStart'; node: string }
+  /** A step of a node drag: replaces the model without adding to the undo history. */
+  | { type: 'drag'; project: Project3D }
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'select'; selection: Selection3D | null }
@@ -174,6 +194,24 @@ export function adaptView(before: Project3D, after: Project3D, view: ViewOptions
   return next;
 }
 
+/**
+ * Tool options that suit a model: plane frames get the 2D support kinds and in-plane load
+ * directions.
+ */
+export function optionsFor(project: Project3D, current: ToolOptions3D): ToolOptions3D {
+  if (isPlane(project)) {
+    const next = { ...current };
+    if (!PLANE_SUPPORT_PRESETS.includes(current.supportPreset)) next.supportPreset = 'fixed';
+    if (current.loadDirection === 'globalZ') next.loadDirection = 'globalY';
+    if (current.loadKind === 'face') next.loadKind = 'nodal';
+    return next;
+  }
+  if (current.supportPreset === 'rollerX' || current.supportPreset === 'rollerY') {
+    return { ...current, supportPreset: 'roller' };
+  }
+  return current;
+}
+
 export function initialState3D(project: Project3D): AppState3D {
   return {
     project,
@@ -182,9 +220,9 @@ export function initialState3D(project: Project3D): AppState3D {
     selection: null,
     tool: 'select',
     pending: [],
-    toolOptions: DEFAULT_TOOL_OPTIONS_3D,
+    toolOptions: optionsFor(project, DEFAULT_TOOL_OPTIONS_3D),
     view: viewFor(project, DEFAULT_VIEW_3D),
-    camera: { preset: 'iso', count: 0 },
+    camera: { preset: isPlane(project) ? 'front' : 'iso', count: 0 },
   };
 }
 
@@ -269,6 +307,9 @@ export function restraintsForPreset(
       return [...PINNED_SUPPORT];
     case 'roller':
       return [...ROLLER_SUPPORT];
+    case 'rollerX':
+    case 'rollerY':
+      return [...SUPPORT_2D_RESTRAINTS[preset]];
     case 'custom':
       return [...custom];
     case 'none':
@@ -277,8 +318,16 @@ export function restraintsForPreset(
 }
 
 /** Which support preset a set of restraints is, for display. */
-export function presetOf(restraints: Restraints6 | undefined): SupportPreset {
+export function presetOf(restraints: Restraints6 | undefined, plane = false): SupportPreset {
   if (!restraints || !restraints.some(Boolean)) return 'none';
+  if (plane) {
+    // Only the in-plane restraints (ux, uy, rz) matter in plane frame mode.
+    const [ux, uy, , , , rz] = restraints;
+    if (ux && uy) return rz ? 'fixed' : 'pinned';
+    if (!rz && uy) return 'rollerX';
+    if (!rz && ux) return 'rollerY';
+    return ux || uy || rz ? 'custom' : 'none';
+  }
   const same = (other: Restraints6) => other.every((v, k) => v === restraints[k]);
   if (same(FIXED_SUPPORT)) return 'fixed';
   if (same(PINNED_SUPPORT)) return 'pinned';
@@ -362,7 +411,33 @@ export function applyToolLoad(
   return load ? addLoad(project, load) : null;
 }
 
+/**
+ * Switching plane frame mode on or off (by an edit, undo or redo) also switches the camera,
+ * the tool options and the default diagram.
+ */
+function followPlane(before: AppState3D, after: AppState3D): AppState3D {
+  const plane = isPlane(after.project);
+  if (plane === isPlane(before.project)) return after;
+  const view =
+    plane && !PLANE_DIAGRAMS.includes(after.view.diagram)
+      ? viewFor(after.project, after.view)
+      : after.view;
+  return {
+    ...after,
+    view,
+    toolOptions: optionsFor(after.project, after.toolOptions),
+    camera: { preset: plane ? 'front' : 'iso', count: after.camera.count + 1 },
+  };
+}
+
+/** Member diagrams that exist in plane frame mode. */
+export const PLANE_DIAGRAMS: ReadonlyArray<ViewOptions3D['diagram']> = ['none', 'N', 'Vy', 'Mz'];
+
 export function reducer3D(state: AppState3D, action: Action3D): AppState3D {
+  return followPlane(state, reduce(state, action));
+}
+
+function reduce(state: AppState3D, action: Action3D): AppState3D {
   switch (action.type) {
     case 'load':
       return {
@@ -375,7 +450,11 @@ export function reducer3D(state: AppState3D, action: Action3D): AppState3D {
         pending: [],
         tool: 'select',
         view: viewFor(action.project, state.view),
-        camera: { preset: 'iso', count: state.camera.count + 1 },
+        camera: {
+          preset: isPlane(action.project) ? 'front' : 'iso',
+          count: state.camera.count + 1,
+        },
+        toolOptions: optionsFor(action.project, state.toolOptions),
       };
     case 'edit': {
       if (action.project === state.project) {
@@ -401,6 +480,15 @@ export function reducer3D(state: AppState3D, action: Action3D): AppState3D {
         pending: (action.pending ?? state.pending).filter((id) => nodes.has(id)),
       };
     }
+    case 'dragStart':
+      return {
+        ...state,
+        past: [...state.past, state.project].slice(-HISTORY_LIMIT),
+        future: [],
+        selection: { kind: 'node', ids: [action.node] },
+      };
+    case 'drag':
+      return action.project === state.project ? state : { ...state, project: action.project };
     case 'undo': {
       const previous = state.past[state.past.length - 1];
       if (!previous) return state;
@@ -476,7 +564,7 @@ export function solveProject3D(project: Project3D): Solution3D {
     return { project, result: null, error: null, pending: false };
   }
   try {
-    return { project, result: analyze3d(toSolverModel3D(project)), error: null, pending: false };
+    return { project, result: analyzeProject3D(project), error: null, pending: false };
   } catch (e) {
     if (e instanceof SolverError) {
       return {

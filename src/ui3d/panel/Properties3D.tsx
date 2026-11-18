@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { memberProps3D } from '../../model3d';
+import { isPlane, memberProps3D, nodesOffPlane, setPlaneMode } from '../../model3d';
+import { notify } from '../../ui/toast';
 import type { EndRelease, Project3D, Restraints6 } from '../../model3d';
 import {
   addDefaultLoad,
@@ -98,12 +99,13 @@ function NodeProperties({ ids }: { ids: string[] }) {
   const supports = ids.map((id) => project.supports.find((s) => s.node === id)?.restraints);
   const first: Restraints6 = supports[0] ?? [false, false, false, false, false, false];
   const same = supports.every((r) => (r ?? []).join() === (supports[0] ?? []).join());
-  const preset = same ? presetOf(supports[0]) : undefined;
+  const plane = isPlane(project);
+  const preset = same ? presetOf(supports[0], plane) : undefined;
   const edit = (next: Project3D) => dispatch({ type: 'edit', project: next });
   const single = nodes.length === 1;
   return (
     <>
-      {(['x', 'y', 'z'] as const).map((axis) => (
+      {(plane ? (['x', 'y'] as const) : (['x', 'y', 'z'] as const)).map((axis) => (
         <Row key={axis} label={`${axis.toUpperCase()} (m)`}>
           <NumberField
             value={common(nodes, (n) => n[axis])}
@@ -135,11 +137,21 @@ function NodeProperties({ ids }: { ids: string[] }) {
           <option value="none">None</option>
           <option value="fixed">Fixed</option>
           <option value="pinned">Pinned</option>
-          <option value="roller">Roller (uy)</option>
-          <option value="custom">Custom</option>
+          {plane ? (
+            <>
+              <option value="rollerX">Roller (rolls along X)</option>
+              <option value="rollerY">Roller (rolls along Y)</option>
+              {preset === 'custom' && <option value="custom">Custom</option>}
+            </>
+          ) : (
+            <>
+              <option value="roller">Roller (uy)</option>
+              <option value="custom">Custom</option>
+            </>
+          )}
         </select>
       </Row>
-      {same && (
+      {same && !plane && (
         <RestraintBoxes
           value={first}
           idPrefix="node"
@@ -317,6 +329,26 @@ function ProjectProperties() {
         <TextField value={p.name} label="Project name" onCommit={(name) => edit({ ...p, name })} />
       </Row>
       {p.description && <p className="muted">{p.description}</p>}
+      <label
+        className="check"
+        title="Plane frame mode: the model lies in the XY plane and only moves in it"
+      >
+        <input
+          type="checkbox"
+          checked={isPlane(p)}
+          aria-label="Plane frame (XY)"
+          onChange={(e) => {
+            const next = setPlaneMode(p, e.target.checked);
+            if (next) edit(next);
+            else
+              notify(
+                `Plane frame mode needs every node on z = 0 (off the plane: ${idList(nodesOffPlane(p), 6)}).`,
+                'error',
+              );
+          }}
+        />
+        Plane frame (XY) — 2D frames and trusses
+      </label>
       <label className="check">
         <input
           type="checkbox"

@@ -405,6 +405,9 @@ export function parseProject3D(data: unknown): Project3D {
   if (typeof data.description === 'string' && data.description) {
     project.description = data.description.slice(0, 600);
   }
+  if (data.plane !== undefined && data.plane !== null) {
+    project.plane = oneOf(data.plane, ['XY'] as const, 'Plane');
+  }
   return project;
 }
 

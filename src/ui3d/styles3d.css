@@ -107,6 +107,14 @@
   backdrop-filter: blur(6px);
 }
 
+.plane-badge {
+  align-self: center;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
 .viewer-presets button {
   min-height: 26px;
   padding: 3px 8px;

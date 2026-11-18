@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { EXAMPLES_3D } from '../examples3d';
+import { EXAMPLES_3D, PLANE_CATEGORY } from '../examples3d';
 import { parseProjectText, ProjectFormatError } from '../io/projectFile';
 import { detectProjectKind, parseProject3DText, serializeProject3D } from '../io/projectFile3d';
 import { shareUrl3D } from '../io/share3d';
@@ -26,7 +26,7 @@ function download(name: string, blob: Blob): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const CATEGORIES = ['Frames', 'Trusses', 'Plates', 'Solids', 'Mixed'] as const;
+const CATEGORIES = ['Frames', 'Trusses', 'Plates', 'Solids', 'Mixed', PLANE_CATEGORY] as const;
 
 export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
   const { state, dispatch } = useStore3D();
@@ -101,14 +101,24 @@ export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
         ))}
       </select>
       <div className="file-actions">
-        <button
-          type="button"
-          className="ghost"
-          title="Start an empty 3D model"
-          onClick={() => dispatch({ type: 'load', project: emptyProject3D() })}
+        <select
+          className="new-picker"
+          aria-label="Start a new model"
+          title="Start an empty model"
+          value=""
+          onChange={(e) => {
+            const project = emptyProject3D();
+            if (e.target.value === 'plane') project.plane = 'XY';
+            if (e.target.value) dispatch({ type: 'load', project });
+            e.target.blur();
+          }}
         >
-          New
-        </button>
+          <option value="" disabled>
+            New…
+          </option>
+          <option value="space">3D model</option>
+          <option value="plane">Plane frame (2D)</option>
+        </select>
         <button
           type="button"
           className="ghost"

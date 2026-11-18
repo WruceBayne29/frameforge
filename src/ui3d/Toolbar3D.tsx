@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { addNode } from '../model3d';
+import { addNode, isPlane } from '../model3d';
 import type { GlobalDirection, SolidFace } from '../model3d';
 import { NumberField, RestraintBoxes, SectionSelect3D } from './fields3d';
 import { LOAD_TOOL_TARGET, LOAD_TOOL_UNIT, applySupport, applyToolLoad } from './state';
@@ -104,16 +104,17 @@ const LOAD_KINDS: Array<{ id: LoadToolKind; label: string }> = [
 /** Adds a node at typed coordinates. */
 function NodeInput() {
   const { state, dispatch } = useStore3D();
+  const plane = isPlane(state.project);
   const [xyz, setXyz] = useState<[number, number, number]>([0, state.toolOptions.elevation, 0]);
   const add = () => {
-    const r = addNode(state.project, xyz[0], xyz[1], xyz[2]);
+    const r = addNode(state.project, xyz[0], xyz[1], plane ? 0 : xyz[2]);
     if (r.project === state.project) notify(`Node ${r.id} is already there.`);
     dispatch({ type: 'edit', project: r.project, selection: { kind: 'node', ids: [r.id] } });
   };
   return (
     <>
       <div className="coord-row">
-        {(['X', 'Y', 'Z'] as const).map((axis, k) => (
+        {(plane ? (['X', 'Y'] as const) : (['X', 'Y', 'Z'] as const)).map((axis, k) => (
           <NumberField
             key={axis}
             value={xyz[k]}
@@ -139,6 +140,7 @@ export function Toolbar3D() {
   const current = TOOLS_3D.find((t) => t.id === tool);
   const target = LOAD_TOOL_TARGET[o.loadKind];
   const plane = tool === 'node' || tool === 'member' || tool === 'plate';
+  const planeMode = isPlane(project);
 
   const applySupportToSelection = () => {
     if (selection?.kind !== 'node') return;
@@ -223,10 +225,21 @@ export function Toolbar3D() {
                 aria-label="Support type"
                 onChange={(e) => set({ supportPreset: e.target.value as SupportPreset })}
               >
-                <option value="fixed">Fixed (all six)</option>
-                <option value="pinned">Pinned (ux uy uz)</option>
-                <option value="roller">Roller (uy only)</option>
-                <option value="custom">Custom…</option>
+                {planeMode ? (
+                  <>
+                    <option value="fixed">Fixed</option>
+                    <option value="pinned">Pinned</option>
+                    <option value="rollerX">Roller (rolls along X)</option>
+                    <option value="rollerY">Roller (rolls along Y)</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="fixed">Fixed (all six)</option>
+                    <option value="pinned">Pinned (ux uy uz)</option>
+                    <option value="roller">Roller (uy only)</option>
+                    <option value="custom">Custom…</option>
+                  </>
+                )}
                 <option value="none">Remove support</option>
               </select>
             </label>
@@ -257,7 +270,7 @@ export function Toolbar3D() {
                 aria-label="Load type"
                 onChange={(e) => set({ loadKind: e.target.value as LoadToolKind })}
               >
-                {LOAD_KINDS.map((l) => (
+                {LOAD_KINDS.filter((l) => !planeMode || l.id !== 'face').map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.label}
                   </option>
@@ -289,7 +302,7 @@ export function Toolbar3D() {
               >
                 <option value="globalY">Global Y (vertical)</option>
                 <option value="globalX">Global X</option>
-                <option value="globalZ">Global Z</option>
+                {!planeMode && <option value="globalZ">Global Z</option>}
               </select>
             </label>
             <label>
@@ -313,14 +326,18 @@ export function Toolbar3D() {
 
         {plane && (
           <>
-            <label>
-              Working elevation Y (m)
-              <NumberField
-                value={o.elevation}
-                label="Working elevation (m)"
-                onCommit={(elevation) => set({ elevation })}
-              />
-            </label>
+            {planeMode ? (
+              <p className="tool-hint">Plane frame: new nodes go on the z = 0 plane.</p>
+            ) : (
+              <label>
+                Working elevation Y (m)
+                <NumberField
+                  value={o.elevation}
+                  label="Working elevation (m)"
+                  onCommit={(elevation) => set({ elevation })}
+                />
+              </label>
+            )}
             <label className="check">
               <input
                 type="checkbox"
@@ -347,6 +364,7 @@ export function Toolbar3D() {
         )}
         {tool === 'select' && (
           <p className="tool-hint">
+            {planeMode && 'Drag a node to move it — the results update as you drag. '}
             Edit the selection in Properties; generators, materials and sections are under Generate.
           </p>
         )}

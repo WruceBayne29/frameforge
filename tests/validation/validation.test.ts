@@ -1,7 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { VALIDATION_CASES } from './cases';
-import type { ValidationCheck } from './cases';
+import type { ValidationCase, ValidationCheck } from './cases';
+import { ENGINE_2D, PLANE_ENGINE } from './engine';
+import type { Engine2D } from './engine';
 
 const TOLERANCE = 1e-3; // 0.1 %
 
@@ -19,6 +21,20 @@ function fmt(v: number): string {
 }
 
 const rows: string[] = [];
+
+/** False while an engine cannot run a case yet (a feature not ported to plane mode). */
+function runnable(vcase: ValidationCase, engine: Engine2D): boolean {
+  try {
+    vcase.run(engine);
+    return true;
+  } catch (e) {
+    if (e instanceof Error && /not available in plane mode/.test(e.message)) return false;
+    throw e;
+  }
+}
+
+const scaleOf = (checks: ValidationCheck[]) =>
+  Math.max(...checks.map((c) => Math.abs(c.expected)), 1e-12);
 const summary: string[] = [];
 
 describe('validation suite: textbook problems vs closed-form answers', () => {
@@ -28,8 +44,10 @@ describe('validation suite: textbook problems vs closed-form answers', () => {
 
   for (const vcase of VALIDATION_CASES) {
     describe(`${vcase.id} ${vcase.title}`, () => {
-      const checks = vcase.run();
-      const scale = Math.max(...checks.map((c) => Math.abs(c.expected)), 1e-12);
+      // The published table describes the solver the app runs: the 3D solver in plane mode.
+      const published = runnable(vcase, PLANE_ENGINE) ? PLANE_ENGINE : ENGINE_2D;
+      const checks = vcase.run(published);
+      const scale = scaleOf(checks);
       rows.push(`\n### ${vcase.id} — ${vcase.title}\n`);
       rows.push(`Reference: ${vcase.reference}\n`);
       rows.push('| Quantity | Closed form | Expected | FrameForge | Error |');
@@ -48,16 +66,23 @@ describe('validation suite: textbook problems vs closed-form answers', () => {
         rows.push(
           `| ${c.quantity} | ${c.formula} | ${fmt(c.expected)} ${c.unit} | ${fmt(c.actual)} ${c.unit} | ${(err * 100).toFixed(4)} % |`,
         );
-        it(`${c.quantity} = ${c.formula}`, () => {
-          expect(err).toBeLessThan(TOLERANCE);
-        });
+      }
+      for (const engine of [PLANE_ENGINE, ENGINE_2D]) {
+        if (!runnable(vcase, engine)) continue;
+        const results = engine === published ? checks : vcase.run(engine);
+        const s = scaleOf(results);
+        for (const c of results) {
+          it(`${engine.name}: ${c.quantity} = ${c.formula}`, () => {
+            expect(relativeError(c, s)).toBeLessThan(TOLERANCE);
+          });
+        }
       }
     });
   }
 
   it('writes VALIDATION.md when WRITE_VALIDATION=1', () => {
     if (process.env.WRITE_VALIDATION !== '1') return;
-    const total = VALIDATION_CASES.reduce((n, c) => n + c.run().length, 0);
+    const total = VALIDATION_CASES.reduce((n, c) => n + c.run(ENGINE_2D).length, 0);
     const header = [
       '# Validation',
       '',

@@ -1,6 +1,6 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { Ref } from 'react';
-import { colorMapCss, nodalField, resultPeaks3D } from '../model3d';
+import { colorMapCss, moveNode, nodalField, resultPeaks3D } from '../model3d';
 import type { AnalysisResult3D } from '../solver3d';
 import { DIAGRAMS_3D, fieldInfo, fieldTitle, fmt, legendTicks } from './format3d';
 import { clickAction, toolHint } from './interaction';
@@ -109,6 +109,12 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
           if (action) dispatch(action);
         },
         onHover: (hit) => setCursor(hit.plane),
+        onDragStart: (node) => dispatch({ type: 'dragStart', node }),
+        onDrag: (node, point) => {
+          const project = stateRef.current.project;
+          dispatch({ type: 'drag', project: moveNode(project, node, ...point) });
+          setCursor(point);
+        },
       });
     } catch {
       setFailed(true);

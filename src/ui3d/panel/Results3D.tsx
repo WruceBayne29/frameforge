@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { resultPeaks3D } from '../../model3d';
+import { isPlane, resultPeaks3D } from '../../model3d';
 import type { AnalysisResult3D } from '../../solver3d';
 import { equilibriumError, fmt, mm } from '../format3d';
 import { isSelected } from '../state';
@@ -19,7 +19,15 @@ function useRowProps() {
   });
 }
 
+/** Which of the six components [x, y, z, rx, ry, rz] a table shows: in plane mode x, y, rz. */
+function usePlaneColumns(): (k: number) => boolean {
+  const { state } = useStore3D();
+  const plane = isPlane(state.project);
+  return (k) => !plane || k === 0 || k === 1 || k === 5;
+}
+
 function Summary({ r }: { r: AnalysisResult3D }) {
+  const show = usePlaneColumns();
   const peaks = resultPeaks3D(r);
   const error = equilibriumError(r);
   const sum = Object.values(r.reactions).reduce(
@@ -71,27 +79,21 @@ function Summary({ r }: { r: AnalysisResult3D }) {
             <th />
             <th>ΣFx (kN)</th>
             <th>ΣFy (kN)</th>
-            <th>ΣFz (kN)</th>
+            {show(2) && <th>ΣFz (kN)</th>}
           </tr>
         </thead>
         <tbody>
           <tr>
             <td>Applied</td>
-            {r.appliedLoad.map((v, k) => (
-              <td key={k}>{fmt(v)}</td>
-            ))}
+            {r.appliedLoad.map((v, k) => show(k) && <td key={k}>{fmt(v)}</td>)}
           </tr>
           <tr>
             <td>Reactions</td>
-            {sum.map((v, k) => (
-              <td key={k}>{fmt(v)}</td>
-            ))}
+            {sum.map((v, k) => show(k) && <td key={k}>{fmt(v)}</td>)}
           </tr>
           <tr className="total">
             <td>Residual</td>
-            {r.equilibrium.slice(0, 3).map((v, k) => (
-              <td key={k}>{fmt(v)}</td>
-            ))}
+            {r.equilibrium.slice(0, 3).map((v, k) => show(k) && <td key={k}>{fmt(v)}</td>)}
           </tr>
         </tbody>
       </table>
@@ -115,8 +117,13 @@ function Summary({ r }: { r: AnalysisResult3D }) {
   );
 }
 
+const DISPLACEMENT_HEADS = ['ux (mm)', 'uy (mm)', 'uz (mm)', 'rx (mrad)', 'ry (mrad)', 'rz (mrad)'];
+const REACTION_HEADS = ['Fx (kN)', 'Fy (kN)', 'Fz (kN)', 'Mx', 'My', 'Mz (kN·m)'];
+const END_HEADS = ['Fx', 'Fy', 'Fz', 'Mx', 'My', 'Mz'];
+
 function Displacements({ r }: { r: AnalysisResult3D }) {
   const { state } = useStore3D();
+  const show = usePlaneColumns();
   const rowProps = useRowProps();
   const { rows, pager } = usePage(state.project.nodes.filter((n) => r.displacements[n.id]));
   return (
@@ -126,12 +133,7 @@ function Displacements({ r }: { r: AnalysisResult3D }) {
           <thead>
             <tr>
               <th>Node</th>
-              <th>ux (mm)</th>
-              <th>uy (mm)</th>
-              <th>uz (mm)</th>
-              <th>rx (mrad)</th>
-              <th>ry (mrad)</th>
-              <th>rz (mrad)</th>
+              {DISPLACEMENT_HEADS.map((h, k) => show(k) && <th key={h}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -140,12 +142,14 @@ function Displacements({ r }: { r: AnalysisResult3D }) {
               return (
                 <tr key={n.id} {...rowProps('node', n.id)}>
                   <td>{n.id}</td>
-                  <td>{mm(d.ux)}</td>
-                  <td>{mm(d.uy)}</td>
-                  <td>{mm(d.uz)}</td>
-                  <td>{fmt(d.rx * 1000)}</td>
-                  <td>{fmt(d.ry * 1000)}</td>
-                  <td>{fmt(d.rz * 1000)}</td>
+                  {[
+                    mm(d.ux),
+                    mm(d.uy),
+                    mm(d.uz),
+                    fmt(d.rx * 1000),
+                    fmt(d.ry * 1000),
+                    fmt(d.rz * 1000),
+                  ].map((text, k) => show(k) && <td key={k}>{text}</td>)}
                 </tr>
               );
             })}
@@ -159,6 +163,8 @@ function Displacements({ r }: { r: AnalysisResult3D }) {
 
 function Reactions({ r }: { r: AnalysisResult3D }) {
   const rowProps = useRowProps();
+  const show = usePlaneColumns();
+  const plane = !show(2);
   const entries = Object.entries(r.reactions);
   const { rows, pager } = usePage(entries);
   const sum = entries.reduce(
@@ -172,32 +178,22 @@ function Reactions({ r }: { r: AnalysisResult3D }) {
           <thead>
             <tr>
               <th>Node</th>
-              <th>Fx (kN)</th>
-              <th>Fy (kN)</th>
-              <th>Fz (kN)</th>
-              <th>Mx</th>
-              <th>My</th>
-              <th>Mz (kN·m)</th>
+              {REACTION_HEADS.map((h, k) => show(k) && <th key={h}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
             {rows.map(([id, v]) => (
               <tr key={id} {...rowProps('node', id)}>
                 <td>{id}</td>
-                <td>{fmt(v.fx)}</td>
-                <td>{fmt(v.fy)}</td>
-                <td>{fmt(v.fz)}</td>
-                <td>{fmt(v.mx)}</td>
-                <td>{fmt(v.my)}</td>
-                <td>{fmt(v.mz)}</td>
+                {[v.fx, v.fy, v.fz, v.mx, v.my, v.mz].map(
+                  (value, k) => show(k) && <td key={k}>{fmt(value)}</td>,
+                )}
               </tr>
             ))}
             <tr className="total">
               <td>Σ</td>
-              {sum.slice(0, 3).map((v, k) => (
-                <td key={k}>{fmt(v)}</td>
-              ))}
-              <td colSpan={3} className="muted">
+              {sum.slice(0, 3).map((v, k) => show(k) && <td key={k}>{fmt(v)}</td>)}
+              <td colSpan={plane ? 1 : 3} className="muted">
                 moments about each node
               </td>
             </tr>
@@ -211,6 +207,7 @@ function Reactions({ r }: { r: AnalysisResult3D }) {
 
 function EndForces({ r }: { r: AnalysisResult3D }) {
   const { state } = useStore3D();
+  const show = usePlaneColumns();
   const rowProps = useRowProps();
   const { rows, pager } = usePage(
     state.project.members.filter((m) => r.members[m.id]),
@@ -225,12 +222,7 @@ function EndForces({ r }: { r: AnalysisResult3D }) {
             <tr>
               <th>Member</th>
               <th>End</th>
-              <th>Fx</th>
-              <th>Fy</th>
-              <th>Fz</th>
-              <th>Mx</th>
-              <th>My</th>
-              <th>Mz</th>
+              {END_HEADS.map((h, k) => show(k) && <th key={h}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -240,9 +232,9 @@ function EndForces({ r }: { r: AnalysisResult3D }) {
                 <tr key={`${m.id}-${end}`} {...rowProps('member', m.id)}>
                   <td>{end === 0 ? m.id : ''}</td>
                   <td>{end === 0 ? m.i : m.j}</td>
-                  {f.slice(end * 6, end * 6 + 6).map((v, k) => (
-                    <td key={k}>{fmt(v)}</td>
-                  ))}
+                  {f
+                    .slice(end * 6, end * 6 + 6)
+                    .map((v, k) => show(k) && <td key={k}>{fmt(v)}</td>)}
                 </tr>
               ));
             })}
@@ -256,6 +248,7 @@ function EndForces({ r }: { r: AnalysisResult3D }) {
 
 function Extremes({ r }: { r: AnalysisResult3D }) {
   const { state } = useStore3D();
+  const full = !isPlane(state.project);
   const rowProps = useRowProps();
   const { rows, pager } = usePage(state.project.members.filter((m) => r.members[m.id]));
   return (
@@ -269,9 +262,9 @@ function Extremes({ r }: { r: AnalysisResult3D }) {
               <th>N max</th>
               <th>N min</th>
               <th>|Vy|</th>
-              <th>|Vz|</th>
-              <th>|T|</th>
-              <th>|My|</th>
+              {full && <th>|Vz|</th>}
+              {full && <th>|T|</th>}
+              {full && <th>|My|</th>}
               <th>|Mz|</th>
               <th>δ (mm)</th>
             </tr>
@@ -289,9 +282,9 @@ function Extremes({ r }: { r: AnalysisResult3D }) {
                     {fmt(v.minAxial.value)}
                   </td>
                   <td>{fmt(Math.abs(v.maxAbsVy.value))}</td>
-                  <td>{fmt(Math.abs(v.maxAbsVz.value))}</td>
-                  <td>{fmt(Math.abs(v.maxAbsTorsion.value))}</td>
-                  <td>{fmt(Math.abs(v.maxAbsMy.value))}</td>
+                  {full && <td>{fmt(Math.abs(v.maxAbsVz.value))}</td>}
+                  {full && <td>{fmt(Math.abs(v.maxAbsTorsion.value))}</td>}
+                  {full && <td>{fmt(Math.abs(v.maxAbsMy.value))}</td>}
                   <td>{fmt(Math.abs(v.maxAbsMz.value))}</td>
                   <td>{mm(Math.abs(v.maxAbsDeflection.value))}</td>
                 </tr>

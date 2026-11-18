@@ -2,7 +2,7 @@
  * What a click in the 3D viewer does with each tool. Pure: given the state and what was hit,
  * returns the action to dispatch, so every tool is unit tested without WebGL.
  */
-import { addMember, addNode, addPlate } from '../model3d';
+import { addMember, addNode, addPlate, isPlane } from '../model3d';
 import type { Project3D } from '../model3d';
 import type { Vec3 } from '../solver3d';
 import {
@@ -139,7 +139,9 @@ export function toolHint(state: AppState3D): string | null {
     case 'select':
       return null;
     case 'node':
-      return `Click the grid (elevation Y = ${state.toolOptions.elevation} m) to add a node`;
+      return isPlane(state.project)
+        ? 'Click the grid (plane z = 0) to add a node'
+        : `Click the grid (elevation Y = ${state.toolOptions.elevation} m) to add a node`;
     case 'member':
       return n === 0
         ? 'Click the first node (or the grid) of the member'

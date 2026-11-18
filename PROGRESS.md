@@ -1,5 +1,36 @@
 # Progress
 
+## Current work: one 3D app (branch `feat/3d-only`)
+
+Goal: remove the 2D workspace without losing any capability — every 2D feature must work in
+the 3D workspace. Branched from `feat/3d-space-structures` (PR #1 was not merged). Phases,
+each committed and pushed when `npm run check`, `npm run format:check` and `npm run coverage`
+pass:
+
+- [x] **Phase 1 — plane frame mode.** `Project3D.plane = 'XY'`: the solver model holds uz, rx,
+  ry at every node (`toSolverModel3D`), `analyzeProject3D` hides those restraints from the
+  reactions; orthographic front view locked; tools draw on z = 0 with a snap grid; node
+  dragging with live re-analysis (select tool); N / Vy / Mz diagrams; in-plane columns in
+  tables and results; 2D support kinds; toggle in Properties (no selection) and "New → Plane
+  frame". `from2D` now produces plane-mode projects (steel 7.85 t/m³ × g, so modal mass
+  matches 2D). The nine 2D examples are a "2D frames & trusses" category of the 3D picker.
+  Tests: `tests/validation/plane.test.ts` (every 2D example and every model analysed by a 2D
+  validation case agree with the 2D solver at every station to 1e-8 relative; the two
+  axially-rigid portal cases get a conditioning-scaled tolerance, see DECISIONS 36);
+  `tests/validation/engine.ts` lets each 2D validation case run on the 2D solver or on the
+  plane-frame path (`plane2d.ts`), and the validation test runs both.
+- [ ] Phase 2 — IS 800 design check in 3D (biaxial, both buckling axes, both shears).
+- [ ] Phase 3 — modal analysis in 3D (consistent mass, subspace iteration on the skyline).
+- [ ] Phase 4 — influence lines in 3D (one factorisation, many right-hand sides).
+- [ ] Phase 5 — PDF report for Project3D.
+- [ ] Phase 6 — delete the 2D UI, migrate old files / `#m=` links / autosave.
+- [ ] Phase 7 — e2e, screenshots, docs, PR (do not merge).
+
+Dev server for this branch: `.claude/worktrees/3d-only` is a git worktree of the main
+checkout; the preview config `frameforge-3d-only` (port 5199) runs it.
+
+## Earlier status
+
 **Status:** COMPLETE — all eight milestones, final deliverables, self-review and all three
 stretch features are done. The 2D app is deployed at https://wrucebayne29.github.io/frameforge/;
 the 3D workspace is complete on the `feat/3d-space-structures` branch (not yet merged or deployed).

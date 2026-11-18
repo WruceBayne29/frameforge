@@ -26,6 +26,7 @@ import {
   DEFAULT_SECTION_3D,
   emptyProject3D,
   FIXED_SUPPORT,
+  GRAVITY,
   PINNED_SUPPORT,
   STEEL,
 } from './types';
@@ -467,8 +468,11 @@ export const SUPPORT_2D_RESTRAINTS: Record<SupportKind, Restraints6> = {
   rollerY: [true, false, true, true, true, false],
 };
 
+/** Mass density of steel used by the 2D app's modal analysis, t/m³. */
+export const STEEL_MASS_2D = 7.85;
+
 /**
- * Converts a 2D project into a 3D one lying in the z = 0 plane that analyses to the same
+ * Converts a 2D project into a plane-frame (`plane: 'XY'`) 3D project lying in the z = 0 plane that analyses to the same
  * in-plane result: frame members become beams, truss members stay trusses, sections and
  * loads are kept.
  *
@@ -485,7 +489,12 @@ export const SUPPORT_2D_RESTRAINTS: Record<SupportKind, Restraints6> = {
 export function from2D(source: Project): Project3D {
   const project = emptyProject3D(source.name);
   if (source.description) project.description = source.description;
-  project.materials = [{ ...STEEL, E: source.E }, { ...CONCRETE }];
+  project.plane = 'XY';
+  // The 2D app took steel as 7.85 t/m³ for modal analysis; keep the same mass.
+  project.materials = [
+    { ...STEEL, E: source.E, density: STEEL_MASS_2D * GRAVITY },
+    { ...CONCRETE },
+  ];
   project.design = { ...source.design };
   project.customSections = source.customSections.map((s) => ({
     name: s.name,

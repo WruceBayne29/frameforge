@@ -6,7 +6,7 @@ import { getSection } from '../design-codes';
 import type { SteelSection } from '../design-codes';
 import type { Load3D, Member3D, StructureModel3D, Support3D } from '../solver3d';
 import type { Material3D, Project3D, ProjectMember3D, Restraints6 } from './types';
-import { STEEL } from './types';
+import { GRAVITY, STEEL } from './types';
 
 /** kN/m² per GPa */
 const GPA = 1e6;
@@ -84,6 +84,45 @@ export function shearModulus(material: Material3D): number {
 export function supportFromRestraints(node: string, restraints: Restraints6): Support3D {
   const [ux, uy, uz, rx, ry, rz] = restraints;
   return { node, ux, uy, uz, rx, ry, rz };
+}
+
+/** Degrees of freedom a plane-frame (XY) project holds at every node: uz, rx and ry. */
+export const PLANE_HELD: Restraints6 = [false, false, true, true, true, false];
+
+/** Restraints of a node in the solver model: its support, plus the plane restraint. */
+function solverRestraints(restraints: Restraints6, plane: boolean): Restraints6 {
+  return plane
+    ? (restraints.map((r, k) => r || PLANE_HELD[k]) as Restraints6)
+    : ([...restraints] as Restraints6);
+}
+
+/** True when the project is a plane frame (lies in z = 0 and only moves in that plane). */
+export function isPlane(project: Pick<Project3D, 'plane'>): boolean {
+  return project.plane === 'XY';
+}
+
+/** Mass per unit volume (t/m³) of a material from its weight density (kN/m³). */
+export function massDensity(material: Material3D): number {
+  return material.density / GRAVITY;
+}
+
+/**
+ * Supports of the solver model. In plane mode every node also gets the out-of-plane
+ * restraint (uz, rx, ry), merged into its own support when it has one.
+ */
+function solverSupports(project: Project3D, nodeIds: Set<string>): Support3D[] {
+  const plane = isPlane(project);
+  const own = new Map<string, Restraints6>();
+  for (const s of project.supports) if (nodeIds.has(s.node)) own.set(s.node, s.restraints);
+  if (!plane) {
+    return [...own].map(([node, restraints]) => supportFromRestraints(node, restraints));
+  }
+  return project.nodes.map((n) =>
+    supportFromRestraints(
+      n.id,
+      solverRestraints(own.get(n.id) ?? [false, false, false, false, false, false], true),
+    ),
+  );
 }
 
 /**
@@ -208,9 +247,7 @@ export function toSolverModel3D(project: Project3D): StructureModel3D {
         density: material.density,
       };
     }),
-    supports: project.supports
-      .filter((s) => nodeIds.has(s.node))
-      .map((s) => supportFromRestraints(s.node, s.restraints)),
+    supports: solverSupports(project, nodeIds),
     loads,
   };
 }
