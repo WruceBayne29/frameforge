@@ -1,0 +1,48 @@
+# A Warren truss as a CSV bundle: tables are separated by [headings].
+# Units for the whole file are set in [settings]; values below are mm and kN.
+[settings]
+key,value
+name,Warren truss (CSV sample)
+length,mm
+force,kN
+
+[nodes]
+id,x,y,z
+1,0,0,0
+2,3000,0,0
+3,6000,0,0
+4,9000,0,0
+5,12000,0,0
+6,1500,2500,0
+7,4500,2500,0
+8,7500,2500,0
+9,10500,2500,0
+
+[members]
+id,i,j,section,type
+B1,1,2,ISMC 150,truss
+B2,2,3,ISMC 150,truss
+B3,3,4,ISMC 150,truss
+B4,4,5,ISMC 150,truss
+T1,6,7,ISMC 150,truss
+T2,7,8,ISMC 150,truss
+T3,8,9,ISMC 150,truss
+D1,1,6,ISMC 125,truss
+D2,6,2,ISMC 125,truss
+D3,2,7,ISMC 125,truss
+D4,7,3,ISMC 125,truss
+D5,3,8,ISMC 125,truss
+D6,8,4,ISMC 125,truss
+D7,4,9,ISMC 125,truss
+D8,9,5,ISMC 125,truss
+
+[supports]
+node,type
+1,pinned
+5,roller
+
+[nodal loads]
+node,fy
+2,-40
+3,-40
+4,-40

@@ -1,0 +1,359 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wrucebayne29.github.io/frameforge/model.schema.json",
+  "title": "FrameForge model",
+  "description": "A structural model for FrameForge: the format of saved .json projects, and the interchange format for models written by other software. Units: kN, m, kN·m; E in GPa; section area in cm²; second moments of area and torsion constant in cm⁴; plate thickness in mm; weight density in kN/m³; pressures in kN/m²; angles in degrees. Global axes are right-handed with Y up; loads are positive along the + axis, so gravity loads are negative Y values. Only nodes and members (or plates / solids) are required; everything else has a default. See docs/IMPORT.md.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "description": "File tag written by FrameForge. Optional for other software.",
+      "const": "frameforge-project"
+    },
+    "version": { "description": "Format version.", "const": 1 },
+    "kind": {
+      "description": "\"space\" marks a 3D project. Optional: a file without it is read as a 3D model unless it is a saved file of the former 2D app.",
+      "const": "space"
+    },
+    "name": { "type": "string", "maxLength": 120, "examples": ["Portal frame"] },
+    "description": { "type": "string", "maxLength": 600 },
+    "plane": {
+      "description": "\"XY\": plane-frame mode. Every node must have z = 0; nodes are held out of plane (uz, rx, ry), so the model behaves like a 2D frame or truss. Leave out for a 3D model.",
+      "const": "XY"
+    },
+    "selfWeight": {
+      "description": "Add the self-weight of every element (gravity along −Y, from the material density).",
+      "type": "boolean",
+      "default": false
+    },
+    "nodes": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "members": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/member" }
+    },
+    "plates": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/plate" }
+    },
+    "solids": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/solid" }
+    },
+    "supports": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/support" }
+    },
+    "loads": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/load" }
+    },
+    "materials": {
+      "description": "Materials referred to by name. When left out: Steel (E 200 GPa, ν 0.3, 77 kN/m³) and Concrete M25 (25 GPa, 0.2, 25 kN/m³). An element without a material uses the first one.",
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/material" }
+    },
+    "customSections": {
+      "description": "Sections other than the built-in ISMB / ISMC rolled sections.",
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/customSection" }
+    },
+    "design": { "$ref": "#/$defs/design" },
+    "masses": {
+      "description": "Lumped nodal masses for modal analysis, acting in X, Y and Z.",
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "required": ["node", "mass"],
+        "properties": {
+          "node": { "$ref": "#/$defs/id" },
+          "mass": { "description": "Tonnes (t = kN·s²/m).", "type": "number", "minimum": 0 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 200, "examples": ["N1", "12"] },
+    "idList": {
+      "description": "One id, or a list of ids.",
+      "oneOf": [
+        { "$ref": "#/$defs/id" },
+        { "type": "array", "minItems": 1, "maxItems": 100000, "items": { "$ref": "#/$defs/id" } }
+      ]
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "x", "y"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "x": { "description": "m", "type": "number" },
+        "y": { "description": "m (vertical)", "type": "number" },
+        "z": { "description": "m", "type": "number", "default": 0 }
+      },
+      "examples": [{ "id": "N2", "x": 6, "y": 4, "z": 0 }]
+    },
+    "release": {
+      "description": "Released end forces in member axes: true frees that component at the end (e.g. { \"my\": true, \"mz\": true } is a pin).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fx": { "type": "boolean" },
+        "fy": { "type": "boolean" },
+        "fz": { "type": "boolean" },
+        "mx": { "type": "boolean" },
+        "my": { "type": "boolean" },
+        "mz": { "type": "boolean" }
+      }
+    },
+    "member": {
+      "type": "object",
+      "required": ["id", "i", "j", "section"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "i": { "description": "Start node id.", "$ref": "#/$defs/id" },
+        "j": { "description": "End node id (not the start node).", "$ref": "#/$defs/id" },
+        "type": {
+          "description": "\"beam\" (bending, shear, torsion and axial force) or \"truss\" (axial force only).",
+          "enum": ["beam", "truss"],
+          "default": "beam"
+        },
+        "section": {
+          "description": "A built-in rolled section (\"ISMB 300\", \"ISMC 200\", …) or the name of a custom section.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "examples": ["ISMB 300"]
+        },
+        "material": { "description": "Material name.", "type": "string", "minLength": 1, "maxLength": 200 },
+        "beta": {
+          "description": "Roll angle about the member axis, degrees. With 0, local z is horizontal and local y points up (for a vertical member local z is global Z), so an upright I-section bends about its major axis under gravity.",
+          "type": "number",
+          "default": 0
+        },
+        "releaseI": { "$ref": "#/$defs/release" },
+        "releaseJ": { "$ref": "#/$defs/release" },
+        "kz": { "description": "IS 800 effective length factor, major axis (overrides design.kz).", "type": "number", "exclusiveMinimum": 0 },
+        "ky": { "description": "IS 800 effective length factor, minor axis (overrides design.ky).", "type": "number", "exclusiveMinimum": 0 }
+      },
+      "examples": [{ "id": "M1", "i": "N1", "j": "N2", "section": "ISMB 300", "type": "beam" }]
+    },
+    "plate": {
+      "type": "object",
+      "required": ["id", "nodes", "thickness"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "nodes": {
+          "description": "Four corner nodes, counter-clockwise seen from the plate's +local-z side.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "thickness": { "description": "mm", "type": "number", "exclusiveMinimum": 0 },
+        "material": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    "solid": {
+      "type": "object",
+      "required": ["id", "nodes"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "nodes": {
+          "description": "Eight nodes: 1–4 on one face, 5–8 on the opposite face (5 above 1, 6 above 2, …).",
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "material": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    "support": {
+      "type": "object",
+      "required": ["node"],
+      "anyOf": [{ "required": ["restraints"] }, { "required": ["type"] }],
+      "properties": {
+        "node": { "$ref": "#/$defs/id" },
+        "restraints": { "$ref": "#/$defs/restraints" },
+        "type": { "description": "Same as restraints.", "$ref": "#/$defs/restraints" }
+      },
+      "examples": [
+        { "node": "N1", "restraints": "fixed" },
+        { "node": "N4", "restraints": [true, true, true, false, false, false] }
+      ]
+    },
+    "restraints": {
+      "description": "Restrained global directions: six booleans [ux, uy, uz, rx, ry, rz], \"fixed\", \"pinned\" (translations), \"roller\" (uy only), a mask such as \"111000\", or an object { \"ux\": true, … }.",
+      "oneOf": [
+        { "type": "array", "minItems": 6, "maxItems": 6, "items": { "type": "boolean" } },
+        { "enum": ["fixed", "pinned", "roller"] },
+        { "type": "string", "pattern": "^[01]{6}$" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ux": { "type": "boolean" },
+            "uy": { "type": "boolean" },
+            "uz": { "type": "boolean" },
+            "rx": { "type": "boolean" },
+            "ry": { "type": "boolean" },
+            "rz": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "memberDirection": {
+      "description": "globalX/Y/Z: global axes (line loads per unit length of the member). localX/Y/Z: member axes.",
+      "enum": ["localX", "localY", "localZ", "globalX", "globalY", "globalZ"]
+    },
+    "surfaceDirection": { "enum": ["localZ", "globalX", "globalY", "globalZ"] },
+    "load": {
+      "description": "One load; it can act on several nodes or elements at once.",
+      "type": "object",
+      "required": ["kind"],
+      "properties": { "id": { "$ref": "#/$defs/id" } },
+      "oneOf": [
+        {
+          "description": "Nodal force (kN) and moment (kN·m) in global axes.",
+          "properties": {
+            "kind": { "const": "nodal" },
+            "nodes": { "$ref": "#/$defs/idList" },
+            "node": { "$ref": "#/$defs/idList" },
+            "fx": { "type": "number", "default": 0 },
+            "fy": { "type": "number", "default": 0 },
+            "fz": { "type": "number", "default": 0 },
+            "mx": { "type": "number", "default": 0 },
+            "my": { "type": "number", "default": 0 },
+            "mz": { "type": "number", "default": 0 }
+          },
+          "anyOf": [{ "required": ["nodes"] }, { "required": ["node"] }],
+          "examples": [{ "kind": "nodal", "nodes": ["N2"], "fx": 10, "fy": -20 }]
+        },
+        {
+          "description": "Uniform or linearly varying line load on members, kN/m, from a to b (m from node i; default the whole member).",
+          "properties": {
+            "kind": { "const": "distributed" },
+            "members": { "$ref": "#/$defs/idList" },
+            "member": { "$ref": "#/$defs/idList" },
+            "direction": { "$ref": "#/$defs/memberDirection" },
+            "w1": { "description": "kN/m at a", "type": "number" },
+            "w2": { "description": "kN/m at b (default w1)", "type": "number" },
+            "a": { "description": "m", "type": "number", "minimum": 0 },
+            "b": { "description": "m", "type": "number", "minimum": 0 }
+          },
+          "required": ["direction", "w1"],
+          "anyOf": [{ "required": ["members"] }, { "required": ["member"] }],
+          "examples": [{ "kind": "distributed", "members": ["M2"], "direction": "globalY", "w1": -20 }]
+        },
+        {
+          "description": "Concentrated force P (kN) on members at a (m from node i).",
+          "properties": {
+            "kind": { "const": "point" },
+            "members": { "$ref": "#/$defs/idList" },
+            "member": { "$ref": "#/$defs/idList" },
+            "direction": { "$ref": "#/$defs/memberDirection" },
+            "P": { "type": "number" },
+            "a": { "type": "number", "minimum": 0 }
+          },
+          "required": ["direction", "P", "a"],
+          "anyOf": [{ "required": ["members"] }, { "required": ["member"] }]
+        },
+        {
+          "description": "Concentrated moment M (kN·m) about the given axis on members at a (m from node i).",
+          "properties": {
+            "kind": { "const": "moment" },
+            "members": { "$ref": "#/$defs/idList" },
+            "member": { "$ref": "#/$defs/idList" },
+            "direction": { "$ref": "#/$defs/memberDirection" },
+            "M": { "type": "number" },
+            "a": { "type": "number", "minimum": 0 }
+          },
+          "required": ["direction", "M", "a"],
+          "anyOf": [{ "required": ["members"] }, { "required": ["member"] }]
+        },
+        {
+          "description": "Uniform pressure p (kN/m²) on plates; localZ is the plate normal.",
+          "properties": {
+            "kind": { "const": "pressure" },
+            "plates": { "$ref": "#/$defs/idList" },
+            "plate": { "$ref": "#/$defs/idList" },
+            "direction": { "$ref": "#/$defs/surfaceDirection" },
+            "p": { "type": "number" }
+          },
+          "required": ["direction", "p"],
+          "anyOf": [{ "required": ["plates"] }, { "required": ["plate"] }]
+        },
+        {
+          "description": "Concentrated force P (kN) on plates at natural coordinates (xi, eta) in [−1, 1].",
+          "properties": {
+            "kind": { "const": "platePoint" },
+            "plates": { "$ref": "#/$defs/idList" },
+            "plate": { "$ref": "#/$defs/idList" },
+            "direction": { "$ref": "#/$defs/surfaceDirection" },
+            "P": { "type": "number" },
+            "xi": { "type": "number", "minimum": -1, "maximum": 1, "default": 0 },
+            "eta": { "type": "number", "minimum": -1, "maximum": 1, "default": 0 }
+          },
+          "required": ["direction", "P"],
+          "anyOf": [{ "required": ["plates"] }, { "required": ["plate"] }]
+        },
+        {
+          "description": "Uniform load p (kN/m²) on one face (1–6) of solids; normal is a pressure pushing into the solid.",
+          "properties": {
+            "kind": { "const": "face" },
+            "solids": { "$ref": "#/$defs/idList" },
+            "solid": { "$ref": "#/$defs/idList" },
+            "face": { "enum": [1, 2, 3, 4, 5, 6] },
+            "direction": { "enum": ["normal", "globalX", "globalY", "globalZ"] },
+            "p": { "type": "number" }
+          },
+          "required": ["face", "direction", "p"],
+          "anyOf": [{ "required": ["solids"] }, { "required": ["solid"] }]
+        }
+      ]
+    },
+    "material": {
+      "type": "object",
+      "required": ["name", "E"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "E": { "description": "Young's modulus, GPa.", "type": "number", "exclusiveMinimum": 0 },
+        "nu": { "description": "Poisson's ratio.", "type": "number", "exclusiveMinimum": -1, "exclusiveMaximum": 0.5, "default": 0.3 },
+        "density": { "description": "Weight density, kN/m³.", "type": "number", "minimum": 0, "default": 0 }
+      },
+      "examples": [{ "name": "Steel", "E": 200, "nu": 0.3, "density": 77 }]
+    },
+    "customSection": {
+      "type": "object",
+      "required": ["name", "A", "Iz", "Iy", "J"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "A": { "description": "Area, cm².", "type": "number", "exclusiveMinimum": 0 },
+        "Iz": { "description": "Second moment of area about local z (major axis), cm⁴.", "type": "number", "exclusiveMinimum": 0 },
+        "Iy": { "description": "Second moment of area about local y (minor axis), cm⁴.", "type": "number", "exclusiveMinimum": 0 },
+        "J": { "description": "Torsion constant, cm⁴.", "type": "number", "exclusiveMinimum": 0 }
+      },
+      "examples": [{ "name": "Box 200", "A": 60, "Iz": 3500, "Iy": 3500, "J": 5200 }]
+    },
+    "design": {
+      "description": "IS 800 steel design settings.",
+      "type": "object",
+      "properties": {
+        "grade": { "description": "IS 2062 grade.", "type": "string", "default": "E250" },
+        "laterallyRestrained": { "type": "boolean", "default": false },
+        "kz": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
+        "ky": { "type": "number", "exclusiveMinimum": 0, "default": 1 }
+      }
+    }
+  }
+}

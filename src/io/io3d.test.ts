@@ -348,14 +348,20 @@ describe('detectProjectKind', () => {
       expect(detectProjectKind(text)).toBe('2d');
       expect(detectProjectKind(JSON.parse(text))).toBe('2d');
     }
-    expect(detectProjectKind({})).toBe('2d');
+    expect(detectProjectKind({ format: 'frameforge-project' })).toBe('2d');
     expect(detectProjectKind(null)).toBe('2d');
     expect(detectProjectKind({ kind: 'something' })).toBe('2d');
     // unmarked data with obvious 3D content
     expect(detectProjectKind({ nodes: [], plates: [{}] })).toBe('3d');
     expect(detectProjectKind({ nodes: [], solids: [{}] })).toBe('3d');
     expect(detectProjectKind({ nodes: [], materials: [] })).toBe('3d');
-    expect(detectProjectKind({ nodes: [], plates: [] })).toBe('2d');
+    expect(detectProjectKind({ format: 'frameforge-project', nodes: [], plates: [] })).toBe('2d');
+    // Untagged data written by other software is an interchange (3D) model, unless its members
+    // are clearly those of a 2D file.
+    expect(detectProjectKind({})).toBe('3d');
+    expect(detectProjectKind({ nodes: [], members: [{ id: 'M1', i: 'a', j: 'b' }] })).toBe('3d');
+    expect(detectProjectKind({ members: [{ type: 'frame' }] })).toBe('2d');
+    expect(detectProjectKind({ members: [{ type: 'truss', releaseI: true }] })).toBe('2d');
     expect(() => detectProjectKind('{nope')).toThrow(ProjectFormatError);
   });
 
