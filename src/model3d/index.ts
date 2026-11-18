@@ -39,3 +39,4 @@ export {
 } from './design';
 export type { MemberDesign3D } from './design';
 export { defaultSubdivision, modalProject3D, modeAsResult } from './modal';
+export { defaultLoadPath3D, influenceProject3D } from './influence';

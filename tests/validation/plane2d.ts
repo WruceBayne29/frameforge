@@ -11,12 +11,16 @@
 import type {
   AnalysisResult,
   Extreme,
+  InfluenceLine,
+  InfluenceTarget,
   MemberResult,
   ModalResult,
   Station,
   StructureModel,
 } from '../../src/solver';
 import type {
+  InfluenceLine3D,
+  InfluenceTarget3D,
   ModalResult3D,
   AnalysisResult3D,
   Load3D,
@@ -198,4 +202,34 @@ export function planeModal2D(model: StructureModel, r: ModalResult3D): ModalResu
       ),
     })),
   };
+}
+
+/** A 2D influence-line target as the 3D one, and the sign that maps 3D values back to 2D. */
+export function planeTarget(
+  model: StructureModel,
+  target: InfluenceTarget,
+): { target: InfluenceTarget3D; sign: number } {
+  if (target.kind !== 'memberForce') return { target, sign: 1 };
+  const s = flippedMembers(model).has(target.member) ? -1 : 1;
+  const component = target.component === 'N' ? 'N' : target.component === 'V' ? 'Vy' : 'Mz';
+  return {
+    target: { kind: 'memberForce', member: target.member, x: target.x, component },
+    sign: component === 'N' ? 1 : s,
+  };
+}
+
+/** The 3D influence line in the 2D shape. */
+export function planeInfluence2D(
+  target: InfluenceTarget,
+  line: InfluenceLine3D,
+  sign: number,
+): InfluenceLine {
+  const ordinates = line.ordinates.map((o) => ({ ...o, value: sign * o.value }));
+  let max = ordinates[0];
+  let min = ordinates[0];
+  for (const o of ordinates) {
+    if (o.value > max.value) max = o;
+    if (o.value < min.value) min = o;
+  }
+  return { target, ordinates, max, min };
 }

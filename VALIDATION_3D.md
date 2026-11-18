@@ -1,6 +1,6 @@
 # 3D validation
 
-FrameForge's 3D solver is checked against **25 problems** (117 individual quantities): closed-form answers for space trusses and frames, and published thin-plate, shell and elasticity solutions for the plate and solid elements. Every case runs through the public `analyze3d` API exactly as the app does.
+FrameForge's 3D solver is checked against **27 problems** (125 individual quantities): closed-form answers for space trusses and frames, and published thin-plate, shell and elasticity solutions for the plate and solid elements. Every case runs through the public `analyze3d` API exactly as the app does.
 
 Each case has its own tolerance, shown in the table. Truss and beam elements are exact for
 the loads they carry, so those cases must match to **0.1 %**, like the 2D suite. Plate and
@@ -46,6 +46,8 @@ the largest reference value of the case.
 | M03 | Fixed–free shaft: torsional and axial frequencies (20 elements) | 3 | 0.3 % | 0.2315 % |
 | M04 | Simply supported square plate, first two frequencies (a/t = 100, 16 × 16 mesh) | 2 | 2 % | 1.4340 % |
 | M05 | Solid cantilever (ν = 0, L/h = 20, 20 × 2 × 2 hexahedra): bending and axial frequencies | 2 | 1.5 % | 0.1141 % |
+| I01 | Influence lines of a two-span continuous beam along Z: central reaction and support moment | 4 | 0.1 % | < 0.0001 % |
+| I02 | L-shaped grillage: torque and bending at the root as a load moves along the arm | 4 | 0.1 % | < 0.0001 % |
 
 ## Full results
 
@@ -340,3 +342,25 @@ Reference: Euler–Bernoulli beam β1L = 1.87510; axial bar π/(2L)·√(E/ρ). 
 | --- | --- | ---: | ---: | ---: |
 | First bending ω | 1.87510²·√(EI/ρAL⁴) | 35.8850 rad/s | 35.8441 rad/s | 0.1141 % |
 | First axial ω | π/(2L)·√(E/ρ) | 1.1107e+3 rad/s | 1.1110e+3 rad/s | 0.0257 % |
+
+### I01 — Influence lines of a two-span continuous beam along Z: central reaction and support moment
+
+Reference: Müller-Breslau: R_B = x(3L² − x²)/2L³, M_B = −x(L² − x²)/4L² over the first span. Tolerance: 0.1 %.
+
+| Quantity | Reference value | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| R_B, load at 0.3L | x(3L² − x²)/2L³ | 0.436500 kN/kN | 0.436500 kN/kN | 0.0000 % |
+| R_B, load at 0.8L | x(3L² − x²)/2L³ | 0.944000 kN/kN | 0.944000 kN/kN | 0.0000 % |
+| M_B, load at 0.5L | −x(L² − x²)/4L² | -0.468750 kN·m/kN | -0.468750 kN·m/kN | 0.0000 % |
+| M_B, load at 0.6L | −x(L² − x²)/4L² | -0.480000 kN·m/kN | -0.480000 kN·m/kN | 0.0000 % |
+
+### I02 — L-shaped grillage: torque and bending at the root as a load moves along the arm
+
+Reference: Statics of a cantilever with a perpendicular arm: T = P·z, Mz(0) = −P·a. Tolerance: 0.1 %.
+
+| Quantity | Reference value | Expected | FrameForge | Error |
+| --- | --- | ---: | ---: | ---: |
+| Root torque, load at the arm tip | P·b | 3.00000 kN·m/kN | 3.00000 kN·m/kN | 0.0000 % |
+| Root torque, load at mid-arm | P·b/2 | 1.50000 kN·m/kN | 1.50000 kN·m/kN | 0.0000 % |
+| Root moment Mz, any position on the arm | −P·a (hogging) | -4.00000 kN·m/kN | -4.00000 kN·m/kN | 0.0000 % |
+| … is constant along the arm | −P·a | -4.00000 kN·m/kN | -4.00000 kN·m/kN | 0.0000 % |

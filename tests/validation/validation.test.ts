@@ -1,9 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { VALIDATION_CASES } from './cases';
-import type { ValidationCase, ValidationCheck } from './cases';
+import type { ValidationCheck } from './cases';
 import { ENGINE_2D, PLANE_ENGINE } from './engine';
-import type { Engine2D } from './engine';
 
 const TOLERANCE = 1e-3; // 0.1 %
 
@@ -22,17 +21,6 @@ function fmt(v: number): string {
 
 const rows: string[] = [];
 
-/** False while an engine cannot run a case yet (a feature not ported to plane mode). */
-function runnable(vcase: ValidationCase, engine: Engine2D): boolean {
-  try {
-    vcase.run(engine);
-    return true;
-  } catch (e) {
-    if (e instanceof Error && /not available in plane mode/.test(e.message)) return false;
-    throw e;
-  }
-}
-
 const scaleOf = (checks: ValidationCheck[]) =>
   Math.max(...checks.map((c) => Math.abs(c.expected)), 1e-12);
 const summary: string[] = [];
@@ -45,7 +33,7 @@ describe('validation suite: textbook problems vs closed-form answers', () => {
   for (const vcase of VALIDATION_CASES) {
     describe(`${vcase.id} ${vcase.title}`, () => {
       // The published table describes the solver the app runs: the 3D solver in plane mode.
-      const published = runnable(vcase, PLANE_ENGINE) ? PLANE_ENGINE : ENGINE_2D;
+      const published = PLANE_ENGINE;
       const checks = vcase.run(published);
       const scale = scaleOf(checks);
       rows.push(`\n### ${vcase.id} — ${vcase.title}\n`);
@@ -68,7 +56,6 @@ describe('validation suite: textbook problems vs closed-form answers', () => {
         );
       }
       for (const engine of [PLANE_ENGINE, ENGINE_2D]) {
-        if (!runnable(vcase, engine)) continue;
         const results = engine === published ? checks : vcase.run(engine);
         const s = scaleOf(results);
         for (const c of results) {

@@ -11,3 +11,12 @@ export type { FactorOptions, FactorResult } from './sparse';
 export { modalAnalysis3d, refineModel3D } from './modal';
 export type { Mode3D, ModalOptions3D, ModalResult3D, ModeStation3D } from './modal';
 export { jacobiEigen, subspaceIteration } from './eigen';
+export { influenceLine3d } from './influence';
+export type {
+  ForceComponent3D,
+  InfluenceLine3D,
+  InfluenceOptions3D,
+  InfluenceOrdinate3D,
+  InfluenceTarget3D,
+  ReactionComponent3D,
+} from './influence';

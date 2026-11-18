@@ -16,7 +16,7 @@ import {
   type ProjectLoad3D,
 } from '../../model3d';
 import { memberAxes, plateAxes, SOLID_FACES } from '../../solver3d';
-import type { AnalysisResult3D, MemberResult3D, Vec3 } from '../../solver3d';
+import type { AnalysisResult3D, InfluenceLine3D, MemberResult3D, Vec3 } from '../../solver3d';
 import { fmt, loadValueText } from '../format3d';
 import type { SelectionKind } from '../state';
 
@@ -876,4 +876,73 @@ export function gridSegments(spec: GridSpec): [Float32Array, Float32Array] {
     }
   }
   return [new Float32Array(minor), new Float32Array(major)];
+}
+
+// ---- Influence lines ----------------------------------------------------------------------
+
+export interface InfluenceGeometry {
+  /** The influence line as segments, drawn above (+Y) the members of the path. */
+  outline: Float32Array;
+  /** Triangles between the path and the line. */
+  fill: Float32Array;
+  /** Values at the largest and smallest ordinates. */
+  labels: Label[];
+  /** Where the response is measured (a node or a section of a member). */
+  marker: Vec3 | null;
+}
+
+/**
+ * Geometry of an influence line: each ordinate is plotted at the load position, offset along
+ * +Y by value × scale, where `height` is the offset of the largest ordinate.
+ */
+export function influenceGeometry(
+  project: Project3D,
+  line: InfluenceLine3D,
+  height: number,
+): InfluenceGeometry {
+  const pos = nodePositions(project);
+  const byId = new Map(project.members.map((m) => [m.id, m]));
+  const peak = Math.max(Math.abs(line.max.value), Math.abs(line.min.value));
+  const factor = peak > 1e-12 ? height / peak : 0;
+  const outline: number[] = [];
+  const fill: number[] = [];
+  const pointAt = (member: string, x: number): Vec3 | null => {
+    const m = byId.get(member);
+    const a = m && pos.get(m.i);
+    const b = m && pos.get(m.j);
+    if (!a || !b) return null;
+    const d = sub(b, a);
+    const L = length(d);
+    return L > 0 ? add(a, scale(d, x / L)) : a;
+  };
+  let previous: { member: string; base: Vec3; top: Vec3 } | null = null;
+  for (const o of line.ordinates) {
+    const base = pointAt(o.member, o.x);
+    if (!base) continue;
+    const top: Vec3 = [base[0], base[1] + o.value * factor, base[2]];
+    if (previous && previous.member === o.member) {
+      outline.push(...previous.top, ...top);
+      fill.push(...previous.base, ...previous.top, ...top, ...previous.base, ...top, ...base);
+    }
+    previous = { member: o.member, base, top };
+  }
+  const labels: Label[] = [];
+  for (const o of line.max === line.min ? [line.max] : [line.max, line.min]) {
+    if (Math.abs(o.value) <= 1e-12 * Math.max(peak, 1e-12)) continue;
+    const base = pointAt(o.member, o.x);
+    if (!base) continue;
+    labels.push({
+      position: [base[0], base[1] + o.value * factor, base[2]],
+      text: fmt(o.value),
+      kind: 'diagram',
+    });
+  }
+  const t = line.target;
+  const marker = t.kind === 'memberForce' ? pointAt(t.member, t.x) : (pos.get(t.node) ?? null);
+  return {
+    outline: new Float32Array(outline),
+    fill: new Float32Array(fill),
+    labels,
+    marker,
+  };
 }

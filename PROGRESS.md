@@ -43,7 +43,17 @@ pass:
   every 2D example = 2D app (frequencies 1e-8), V23/V24 through plane mode, closed forms in
   `solver3d/modal.test.ts`, VALIDATION_3D cases M01–M05. Found and fixed: the "Simply
   supported slab" example could spin in its own plane (wrong in-plane support direction).
-- [ ] Phase 4 — influence lines in 3D (one factorisation, many right-hand sides).
+- [x] **Phase 4 — influence lines in 3D.** `solver3d/influence.ts` (`influenceLine3d`): one
+  factorisation, one solve per load position; targets: reactions (6 components), nodal
+  displacements, member N / Vy / Vz / T / My / Mz at a section (`lineForcesAt`); load
+  default −Y, any member-load direction; left limit at the section like 2D. Project level:
+  `influenceProject3D`, `defaultLoadPath3D` (near-horizontal members = beams in plane mode).
+  UI: Advanced tab section (response, node / member + section, component; ordinates table),
+  the line drawn above its path with max / min labels and a target marker. Tests: plane mode
+  = 2D app on every example (supports, mid-member N/V/M, node uy; 1e-8), V25/V26 through
+  plane mode, closed forms + "every ordinate equals a static analysis" in
+  `solver3d/influence.test.ts`, VALIDATION_3D I01–I02. All 26 2D validation cases now run on
+  the plane-frame engine as well as the 2D reference.
 - [ ] Phase 5 — PDF report for Project3D.
 - [ ] Phase 6 — delete the 2D UI, migrate old files / `#m=` links / autosave.
 - [ ] Phase 7 — e2e, screenshots, docs, PR (do not merge).

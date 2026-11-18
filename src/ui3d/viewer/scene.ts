@@ -21,7 +21,7 @@ import {
   type DiagramKind3D,
   type Project3D,
 } from '../../model3d';
-import type { AnalysisResult3D } from '../../solver3d';
+import type { AnalysisResult3D, InfluenceLine3D } from '../../solver3d';
 import type {
   CameraPreset,
   Pick3D,
@@ -37,6 +37,7 @@ import {
   displacedPositions,
   gridSegments,
   idLabels,
+  influenceGeometry,
   loadArrows,
   memberDiagram,
   niceSpacing,
@@ -67,6 +68,8 @@ export interface SceneInput {
   result: AnalysisResult3D | null;
   /** IS 800 results, used to colour members by utilisation. */
   design: Record<string, MemberDesign3D> | null;
+  /** Influence line drawn along its load path, if any. */
+  influence?: InfluenceLine3D | null;
   view: ViewOptions3D;
   selection: Selection3D | null;
   pending: string[];
@@ -96,7 +99,15 @@ export interface ViewerCallbacks {
 }
 
 type LayerName =
-  'grid' | 'model' | 'supports' | 'loads' | 'results' | 'labels' | 'selection' | 'hover';
+  | 'grid'
+  | 'model'
+  | 'supports'
+  | 'loads'
+  | 'results'
+  | 'influence'
+  | 'labels'
+  | 'selection'
+  | 'hover';
 
 const LAYERS: LayerName[] = [
   'grid',
@@ -104,6 +115,7 @@ const LAYERS: LayerName[] = [
   'supports',
   'loads',
   'results',
+  'influence',
   'labels',
   'selection',
   'hover',
@@ -291,6 +303,7 @@ export class ViewerEngine {
       ],
       () => this.buildResults(),
     );
+    this.layer('influence', [project, input.influence, palette], () => this.buildInfluence());
     this.layer('labels', [project, view.labels, palette], () => this.buildLabels());
     this.layer(
       'selection',
@@ -986,6 +999,45 @@ export class ViewerEngine {
       const set = reactionArrows(project, result, sizes.arrow, sizes.glyph * 1.2);
       out.push(...this.arrowsMesh(set.arrows, palette.reaction, sizes.arrow * 0.22, false));
       out.push(...this.labels(set.labels));
+    }
+    return out.filter((x): x is THREE.Object3D => !!x);
+  }
+
+  private buildInfluence(): THREE.Object3D[] {
+    const { project, influence, palette } = this.input as SceneInput;
+    if (!influence) return [];
+    const sizes = this.sizes as Sizes;
+    const g = influenceGeometry(project, influence, sizes.model * 0.16);
+    const out: Array<THREE.Object3D | null> = [];
+    if (g.fill.length > 0) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(g.fill, 3));
+      out.push(
+        new THREE.Mesh(
+          geometry,
+          new THREE.MeshBasicMaterial({
+            color: color(palette.accent),
+            transparent: true,
+            opacity: 0.22,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+          }),
+        ),
+      );
+    }
+    out.push(this.fatLines(g.outline, palette.accent, 2.2));
+    out.push(...this.labels(g.labels));
+    if (g.marker) {
+      out.push(
+        this.spheres(
+          ['target'],
+          new Map([['target', g.marker]]),
+          sizes.node * 2.2,
+          palette.compression,
+          0.9,
+          false,
+        ),
+      );
     }
     return out.filter((x): x is THREE.Object3D => !!x);
   }

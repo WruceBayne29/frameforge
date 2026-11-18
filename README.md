@@ -331,7 +331,7 @@ Plate and solid cases compare a finite-element mesh with a continuum solution; e
 tolerance its mesh is expected to meet, and the table shows the error actually reached.
 
 <!-- validation3d:start -->
-**25 problems, 117 quantities, each within its stated tolerance.**
+**27 problems, 125 quantities, each within its stated tolerance.**
 
 | # | Problem | Quantities | Tolerance | Max error |
 | --- | --- | ---: | ---: | ---: |
@@ -360,6 +360,8 @@ tolerance its mesh is expected to meet, and the table shows the error actually r
 | M03 | Fixed–free shaft: torsional and axial frequencies (20 elements) | 3 | 0.3 % | 0.2315 % |
 | M04 | Simply supported square plate, first two frequencies (a/t = 100, 16 × 16 mesh) | 2 | 2 % | 1.4340 % |
 | M05 | Solid cantilever (ν = 0, L/h = 20, 20 × 2 × 2 hexahedra): bending and axial frequencies | 2 | 1.5 % | 0.1141 % |
+| I01 | Influence lines of a two-span continuous beam along Z: central reaction and support moment | 4 | 0.1 % | < 0.0001 % |
+| I02 | L-shaped grillage: torque and bending at the root as a load moves along the arm | 4 | 0.1 % | < 0.0001 % |
 <!-- validation3d:end -->
 
 ## Architecture

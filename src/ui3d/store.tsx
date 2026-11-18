@@ -54,8 +54,11 @@ export function StoreProvider3D({
     [direct, delayed, project],
   );
   // Only the switches matter, not which mode is being shown.
-  const modal = state.advanced.modal;
-  const extras = useMemo(() => solveExtras3D(project, { modal, mode: null }), [project, modal]);
+  const { modal, influence } = state.advanced;
+  const extras = useMemo(
+    () => solveExtras3D(project, { modal, mode: null, influence }),
+    [project, modal, influence],
+  );
   const value = useMemo(() => ({ state, dispatch, solution, extras }), [state, solution, extras]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

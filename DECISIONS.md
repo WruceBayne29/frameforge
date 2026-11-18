@@ -148,3 +148,7 @@ members".
 47. **VALIDATION_3D case M04 tolerance (2 %) was set after the first run** — the only
     tolerance not fixed in advance: the second plate mode on the 16 × 16 mesh came out 1.4 %
     high while the fundamental is within 0.3 %. Stated in the case and here.
+48. **3D influence lines reuse one factorisation** (decision 20 is superseded for 3D): each
+    load position only adds the moving load's equivalent nodal loads on one member and one
+    forward/back substitution, so a 13-point line over dozens of members costs about one
+    analysis. Ordinates are checked against full static analyses in the tests.

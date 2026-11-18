@@ -11,7 +11,9 @@ import {
   DEFAULT_PLATE_THICKNESS,
   DEFAULT_SECTION_3D,
   analyzeProject3D,
+  defaultLoadPath3D,
   designMembers3D,
+  influenceProject3D,
   modalProject3D,
   FIXED_SUPPORT,
   isPlane,
@@ -32,7 +34,12 @@ import type {
   SolidFace,
 } from '../model3d';
 import { SolverError } from '../solver3d';
-import type { AnalysisResult3D, ModalResult3D } from '../solver3d';
+import type {
+  AnalysisResult3D,
+  InfluenceLine3D,
+  InfluenceTarget3D,
+  ModalResult3D,
+} from '../solver3d';
 
 export type Tool3D = 'select' | 'node' | 'member' | 'plate' | 'support' | 'load' | 'delete';
 export type SelectionKind = 'node' | 'member' | 'plate' | 'solid' | 'load';
@@ -109,6 +116,8 @@ export interface AdvancedState3D {
   modal: boolean;
   /** Index of the mode drawn (animated) in the viewer, or null. */
   mode: number | null;
+  /** Response whose influence line is computed and drawn, or null. */
+  influence: InfluenceTarget3D | null;
 }
 
 export interface AppState3D {
@@ -239,7 +248,7 @@ export function initialState3D(project: Project3D): AppState3D {
     toolOptions: optionsFor(project, DEFAULT_TOOL_OPTIONS_3D),
     view: viewFor(project, DEFAULT_VIEW_3D),
     camera: { preset: isPlane(project) ? 'front' : 'iso', count: 0 },
-    advanced: { modal: false, mode: null },
+    advanced: { modal: false, mode: null, influence: null },
   };
 }
 
@@ -472,7 +481,7 @@ function reduce(state: AppState3D, action: Action3D): AppState3D {
           count: state.camera.count + 1,
         },
         toolOptions: optionsFor(action.project, state.toolOptions),
-        advanced: { ...state.advanced, mode: null },
+        advanced: { ...state.advanced, mode: null, influence: null },
       };
     case 'edit': {
       if (action.project === state.project) {
@@ -579,19 +588,37 @@ export interface Solution3D {
 export interface Extras3D {
   modal: ModalResult3D | null;
   modalError: string | null;
+  influence: InfluenceLine3D | null;
+  influenceError: string | null;
+  /** Members the moving unit load travels along. */
+  influencePath: string[];
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'The calculation failed.');
 
 /** Runs the optional analyses that are switched on; never throws. */
 export function solveExtras3D(project: Project3D, advanced: AdvancedState3D): Extras3D {
-  const extras: Extras3D = { modal: null, modalError: null };
+  const extras: Extras3D = {
+    modal: null,
+    modalError: null,
+    influence: null,
+    influenceError: null,
+    influencePath: [],
+  };
   if (project.members.length + project.plates.length + project.solids.length === 0) return extras;
   if (advanced.modal) {
     try {
       extras.modal = modalProject3D(project, 6);
     } catch (e) {
       extras.modalError = message(e);
+    }
+  }
+  if (advanced.influence && project.members.length > 0) {
+    extras.influencePath = defaultLoadPath3D(project);
+    try {
+      extras.influence = influenceProject3D(project, advanced.influence, extras.influencePath);
+    } catch (e) {
+      extras.influenceError = message(e);
     }
   }
   return extras;

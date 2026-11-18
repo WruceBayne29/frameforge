@@ -27,7 +27,7 @@ declare global {
 const GRADIENT = `linear-gradient(to top, ${[0, 0.25, 0.5, 0.75, 1].map((t) => colorMapCss(t)).join(', ')})`;
 
 /** Contour colour scale and diagram key, over the top-right of the viewer. */
-function Legend({ result }: { result: AnalysisResult3D | null }) {
+function Legend({ result, diagrams }: { result: AnalysisResult3D | null; diagrams: boolean }) {
   const { state } = useStore3D();
   const { project, view } = state;
   const field = useMemo(
@@ -37,7 +37,7 @@ function Legend({ result }: { result: AnalysisResult3D | null }) {
   const peaks = useMemo(() => (result ? resultPeaks3D(result) : null), [result]);
   const diagram = DIAGRAMS_3D.find((d) => d.id === view.diagram);
   const showField = field && Object.keys(field.values).length > 0;
-  const showDiagram = diagram && peaks && project.members.length > 0;
+  const showDiagram = diagrams && diagram && peaks && project.members.length > 0;
   if (!showField && !showDiagram) return null;
   const info = field ? fieldInfo(field.kind) : null;
   return (
@@ -156,12 +156,19 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
     [mode, state.project],
   );
 
+  const influence = state.advanced.influence ? extras.influence : null;
+
   useEffect(() => {
+    // While an influence line is shown the member diagrams and reactions step aside.
+    const view = influence
+      ? { ...state.view, diagram: 'none' as const, reactions: false }
+      : state.view;
     const input = {
       project: state.project,
       result,
       design,
-      view: state.view,
+      influence,
+      view,
       selection: state.selection,
       pending: state.pending,
       tool: state.tool,
@@ -174,7 +181,7 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
       return;
     }
     // Animate: scale the mode shape by sin(2πt / T) every frame.
-    const view = {
+    const modeView = {
       ...state.view,
       deformed: true,
       diagram: 'none' as const,
@@ -190,7 +197,7 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
         ...input,
         result: modeResult,
         design: null,
-        view: { ...view, deformScale: 2.2 * state.view.deformScale * phase },
+        view: { ...modeView, deformScale: 2.2 * state.view.deformScale * phase },
       });
       frame = requestAnimationFrame(tick);
     };
@@ -208,6 +215,7 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
     palette,
     problem,
     modeResult,
+    influence,
   ]);
 
   const { preset, count } = state.camera;
@@ -248,7 +256,7 @@ export function Viewer({ ref }: { ref?: Ref<ViewerHandle> }) {
           </span>
         </div>
       ) : (
-        <Legend result={result} />
+        <Legend result={result} diagrams={!influence} />
       )}
       {cursor && (
         <div className="canvas-readout">

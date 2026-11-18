@@ -9,7 +9,7 @@
  * a finite-element mesh with a continuum solution; their tolerance states the accuracy that
  * mesh is expected to reach and is part of the published table.
  */
-import { analyze3d, modalAnalysis3d } from '../../src/solver3d';
+import { analyze3d, influenceLine3d, modalAnalysis3d } from '../../src/solver3d';
 import type {
   AnalysisResult3D,
   Load3D,
@@ -1761,6 +1761,88 @@ export const VALIDATION_CASES_3D: ValidationCase3D[] = [
       return [
         check('First bending ω', '1.87510²·√(EI/ρAL⁴)', bending, r.modes[0].omega, 'rad/s'),
         check('First axial ω', 'π/(2L)·√(E/ρ)', axial, nearest(axial), 'rad/s'),
+      ];
+    },
+  },
+
+  // ---- Influence lines ----------------------------------------------------------------
+  {
+    id: 'I01',
+    title:
+      'Influence lines of a two-span continuous beam along Z: central reaction and support moment',
+    reference: 'Müller-Breslau: R_B = x(3L² − x²)/2L³, M_B = −x(L² − x²)/4L² over the first span',
+    tolerance: EXACT,
+    run: () => {
+      const L = 5;
+      const model = {
+        nodes: [node('A', 0, 0, 0), node('B', 0, 0, L), node('C', 0, 0, 2 * L)],
+        members: [beam('AB', 'A', 'B'), beam('BC', 'B', 'C')],
+        supports: [
+          { node: 'A', ux: true, uy: true, uz: true, rz: true },
+          { node: 'B', ux: true, uy: true },
+          { node: 'C', ux: true, uy: true },
+        ],
+        loads: [],
+      };
+      const options = { path: ['AB'], pointsPerMember: 11 };
+      const rb = influenceLine3d(model, { kind: 'reaction', node: 'B', component: 'fy' }, options);
+      const mb = influenceLine3d(
+        model,
+        { kind: 'memberForce', member: 'BC', x: 0, component: 'Mz' },
+        options,
+      );
+      const at = (line: typeof rb, x: number) =>
+        line.ordinates.find((o) => Math.abs(o.x - x) < 1e-9)?.value ?? NaN;
+      const r = (x: number) => (x * (3 * L * L - x * x)) / (2 * L ** 3);
+      const m = (x: number) => -(x * (L * L - x * x)) / (4 * L * L);
+      return [
+        check('R_B, load at 0.3L', 'x(3L² − x²)/2L³', r(1.5), at(rb, 1.5), 'kN/kN'),
+        check('R_B, load at 0.8L', 'x(3L² − x²)/2L³', r(4), at(rb, 4), 'kN/kN'),
+        check('M_B, load at 0.5L', '−x(L² − x²)/4L²', m(2.5), at(mb, 2.5), 'kN·m/kN'),
+        check('M_B, load at 0.6L', '−x(L² − x²)/4L²', m(3), at(mb, 3), 'kN·m/kN'),
+      ];
+    },
+  },
+  {
+    id: 'I02',
+    title: 'L-shaped grillage: torque and bending at the root as a load moves along the arm',
+    reference: 'Statics of a cantilever with a perpendicular arm: T = P·z, Mz(0) = −P·a',
+    tolerance: EXACT,
+    run: () => {
+      const a = 4;
+      const b = 3;
+      const model = {
+        nodes: [node('A', 0, 0, 0), node('B', a, 0, 0), node('C', a, 0, b)],
+        members: [beam('AB', 'A', 'B'), beam('BC', 'B', 'C')],
+        supports: [fixed('A')],
+        loads: [],
+      };
+      const options = { path: ['BC'], pointsPerMember: 7 };
+      const torque = influenceLine3d(
+        model,
+        { kind: 'memberForce', member: 'AB', x: 0, component: 'T' },
+        options,
+      );
+      const moment = influenceLine3d(
+        model,
+        { kind: 'memberForce', member: 'AB', x: 0, component: 'Mz' },
+        options,
+      );
+      const end = torque.ordinates[torque.ordinates.length - 1];
+      const mid = torque.ordinates[3];
+      // A unit load (0, −1, 0) at (a, 0, z) has a moment r × F = (z, 0, a·(−1)) about the
+      // root: the torque T (moment of the far side about +x) is +z.
+      return [
+        check('Root torque, load at the arm tip', 'P·b', b, end.value, 'kN·m/kN'),
+        check('Root torque, load at mid-arm', 'P·b/2', b / 2, mid.value, 'kN·m/kN'),
+        check(
+          'Root moment Mz, any position on the arm',
+          '−P·a (hogging)',
+          -a,
+          moment.max.value,
+          'kN·m/kN',
+        ),
+        check('… is constant along the arm', '−P·a', -a, moment.min.value, 'kN·m/kN'),
       ];
     },
   },

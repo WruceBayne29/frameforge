@@ -801,3 +801,23 @@ export function lineShape(
   }
   return out;
 }
+
+/**
+ * Internal forces of a member at distance `x` from node i (side −1: just before x, +1: just
+ * after), for GLOBAL element displacements `u`, including the member's own loads. A cheaper
+ * alternative to `lineResult` when one section is wanted (influence lines).
+ */
+export function lineForcesAt(el: LineElement, u: number[], x: number, side: -1 | 1): SectionForces {
+  const r = [el.axes.x, el.axes.y, el.axes.z];
+  const uLocal = new Array<number>(12).fill(0);
+  const perNode = el.dofsPerNode;
+  for (let node = 0; node < 2; node++) {
+    for (let block = 0; block < perNode / 3; block++) {
+      const g = perNode * node + 3 * block;
+      const vec: Vec3 = [u[g], u[g + 1], u[g + 2]];
+      for (let a = 0; a < 3; a++) uLocal[6 * node + 3 * block + a] = dot(r[a], vec);
+    }
+  }
+  const endForces = matVec(el.kLocal, uLocal).map((v, i) => v - el.fLocal[i]);
+  return internalForces(x, side, endForces, el.loads);
+}

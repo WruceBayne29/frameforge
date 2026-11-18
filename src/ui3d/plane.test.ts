@@ -14,7 +14,7 @@ import {
   toSolverModel3D,
 } from '../model3d';
 import type { Project3D } from '../model3d';
-import { gridSegments, supportGlyphs } from './viewer/build';
+import { gridSegments, influenceGeometry, supportGlyphs } from './viewer/build';
 import {
   applySupport,
   DEFAULT_TOOL_OPTIONS_3D,
@@ -275,5 +275,33 @@ describe('plane frame mode: workspace state', () => {
     const project = example?.build() as Project3D;
     expect(project.plane).toBe('XY');
     expect(initialState3D(project).camera.preset).toBe('front');
+  });
+});
+
+describe('influence line geometry', () => {
+  it('plots each ordinate above its load position and marks the target', () => {
+    const p = portal();
+    const line = {
+      target: { kind: 'memberForce' as const, member: 'M2', x: 3, component: 'Mz' as const },
+      ordinates: [
+        { member: 'M2', x: 0, value: 0 },
+        { member: 'M2', x: 3, value: 1.5 },
+        { member: 'M2', x: 6, value: -0.5 },
+      ],
+      max: { member: 'M2', x: 3, value: 1.5 },
+      min: { member: 'M2', x: 6, value: -0.5 },
+    };
+    const g = influenceGeometry(p, line, 3);
+    // Two segments: (0,4)-(3,7) and (3,7)-(6,3).
+    expect(Array.from(g.outline)).toEqual([0, 4, 0, 3, 7, 0, 3, 7, 0, 6, 3, 0]);
+    expect(g.fill.length).toBe(2 * 6 * 3);
+    expect(g.labels.map((l) => Number(l.text))).toEqual([1.5, -0.5]);
+    expect(g.marker).toEqual([3, 4, 0]);
+    const reaction = influenceGeometry(
+      p,
+      { ...line, target: { kind: 'reaction', node: 'N1', component: 'fy' } },
+      3,
+    );
+    expect(reaction.marker).toEqual([0, 0, 0]);
   });
 });
