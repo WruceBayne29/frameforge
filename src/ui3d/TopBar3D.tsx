@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { EXAMPLES_3D, PLANE_CATEGORY } from '../examples3d';
 import { parseProjectText, ProjectFormatError } from '../io/projectFile';
 import { detectProjectKind, parseProject3DText, serializeProject3D } from '../io/projectFile3d';
@@ -6,7 +6,7 @@ import { shareUrl3D } from '../io/share3d';
 import { emptyProject3D } from '../model3d';
 import { notify } from '../ui/toast';
 import { useWorkspace, WorkspaceSwitch } from '../ui/workspace';
-import { slug } from './format3d';
+import { fieldTitle, slug } from './format3d';
 import { useStore3D } from './store';
 
 export interface TopBar3DProps {
@@ -29,8 +29,9 @@ function download(name: string, blob: Blob): void {
 const CATEGORIES = ['Frames', 'Trusses', 'Plates', 'Solids', 'Mixed', PLANE_CATEGORY] as const;
 
 export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
-  const { state, dispatch } = useStore3D();
+  const { state, dispatch, solution, extras } = useStore3D();
   const { open2D } = useWorkspace();
+  const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const project = state.project;
 
@@ -61,6 +62,47 @@ export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
       }
     } catch {
       notify('Could not create a share link.', 'error');
+    }
+  };
+
+  const report = async () => {
+    if (!solution.result) {
+      notify('Fix the model so it can be analysed before exporting a report.', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      // The PDF library is loaded on demand so it does not slow down the first page load.
+      const [{ buildReport3D, reportFileName }, link] = await Promise.all([
+        import('../io/report3d'),
+        shareUrl3D(project, window.location.href).catch(() => undefined),
+      ]);
+      // Plates and solids: add a picture of the live view (contour plots are raster only).
+      const images = [];
+      if (project.plates.length + project.solids.length > 0) {
+        const dataUrl = window.frameforgeViewer3D?.capture();
+        const box = document.querySelector('[data-testid="viewer3d"]')?.getBoundingClientRect();
+        if (dataUrl && box && box.height > 0) {
+          const title =
+            state.view.contour !== 'none'
+              ? `Contour plot - ${fieldTitle(state.view.contour)} (as shown in the app)`
+              : '3D view (as shown in the app)';
+          images.push({ title, dataUrl, aspect: box.width / box.height });
+        }
+      }
+      buildReport3D({
+        project,
+        result: solution.result,
+        design: solution.design,
+        modal: extras.modal,
+        images,
+        shareUrl: link,
+      }).save(reportFileName(project));
+      notify('PDF report downloaded.');
+    } catch {
+      notify('Could not create the PDF report.', 'error');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -147,6 +189,15 @@ export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
           onClick={share}
         >
           Share
+        </button>
+        <button
+          type="button"
+          className="ghost"
+          title="Download a PDF calculation report (inputs, results, diagrams, design checks)"
+          disabled={busy}
+          onClick={() => void report()}
+        >
+          {busy ? 'Building…' : 'PDF report'}
         </button>
         <input
           ref={fileInput}

@@ -54,7 +54,15 @@ pass:
   plane mode, closed forms + "every ordinate equals a static analysis" in
   `solver3d/influence.test.ts`, VALIDATION_3D I01–I02. All 26 2D validation cases now run on
   the plane-frame engine as well as the 2D reference.
-- [ ] Phase 5 — PDF report for Project3D.
+- [x] **Phase 5 — PDF report for Project3D.** `src/io/report3d.ts` (`buildReport3D`, lazy
+  chunk loaded by the "PDF report" button in the 3D top bar): inputs (nodes, supports,
+  materials, members, plates, solids, custom sections, loads, masses), results (equilibrium,
+  reactions, member extremes and end forces, displacements, plate / solid stress summaries,
+  warnings), diagrams, IS 800 design, natural frequencies. Figures are jsPDF vector
+  projections (iso, front, top) with member diagrams, deflected and mode shapes; plates and
+  solids as wireframes; raster capture of the live viewer added for plate / solid models.
+  Plane mode: one front view per figure with the 2D titles, symbols and N / V / M diagrams.
+  Tables longer than 400 rows are cut with a note. Tests in `report3d.test.ts` (Node).
 - [ ] Phase 6 — delete the 2D UI, migrate old files / `#m=` links / autosave.
 - [ ] Phase 7 — e2e, screenshots, docs, PR (do not merge).
 
