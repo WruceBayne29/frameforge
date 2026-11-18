@@ -76,6 +76,14 @@ export function Help3D({ onClose }: { onClose: () => void }) {
           can be dragged with the select tool, and only N, Vy and Mz are shown. Files, share links
           and saved models from the former 2D app open as plane frames.
         </p>
+        <h4>Importing models</h4>
+        <p className="muted">
+          Import takes tables of nodes, members, supports and loads (CSV, or cells copied from
+          Excel), a STAAD.Pro .std file, a CSV bundle or a .json model, and shows any problems with
+          their line numbers before the model is created. Open also accepts .std files. Scripts can
+          use window.frameforge, and a link with ?model=&lt;url&gt; opens a model directly — see
+          docs/IMPORT.md on GitHub.
+        </p>
         <h4>Design, dynamics and reports</h4>
         <p className="muted">
           The Design tab checks every ISMB / ISMC member to IS 800:2007 (biaxial bending, both

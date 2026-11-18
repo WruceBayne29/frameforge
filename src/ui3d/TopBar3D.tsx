@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { EXAMPLES_3D, PLANE_CATEGORY } from '../examples3d';
+import { detectFormat } from '../import';
 import { openProjectText } from '../io/migrate';
 import { ProjectFormatError } from '../io/projectFile';
 import { serializeProject3D } from '../io/projectFile3d';
@@ -13,6 +14,8 @@ export interface TopBar3DProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onHelp: () => void;
+  /** Opens the Import dialog, optionally with a file already loaded. */
+  onImport: (source: { text: string; filename: string } | null) => void;
 }
 
 function download(name: string, blob: Blob): void {
@@ -28,7 +31,7 @@ function download(name: string, blob: Blob): void {
 
 const CATEGORIES = ['Frames', 'Trusses', 'Plates', 'Solids', 'Mixed', PLANE_CATEGORY] as const;
 
-export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
+export function TopBar3D({ theme, onToggleTheme, onHelp, onImport }: TopBar3DProps) {
   const { state, dispatch, solution, extras } = useStore3D();
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -36,7 +39,13 @@ export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
 
   const openFile = async (file: File) => {
     try {
-      const opened = openProjectText(await file.text());
+      const text = await file.text();
+      // STAAD files and CSV bundles go through the Import dialog, which shows any warnings.
+      if (!/\.json$/i.test(file.name) && detectFormat(text, file.name) !== 'json') {
+        onImport({ text, filename: file.name });
+        return;
+      }
+      const opened = openProjectText(text);
       dispatch({ type: 'load', project: opened.project });
       notify(
         opened.converted
@@ -161,10 +170,18 @@ export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
         <button
           type="button"
           className="ghost"
-          title="Open a saved .json model (older 2D files open as plane frames)"
+          title="Open a saved .json model (older 2D files open as plane frames), a STAAD .std file or a CSV bundle"
           onClick={() => fileInput.current?.click()}
         >
           Open
+        </button>
+        <button
+          type="button"
+          className="ghost"
+          title="Import nodes, members, supports and loads from tables (CSV / Excel) or a STAAD.Pro file"
+          onClick={() => onImport(null)}
+        >
+          Import
         </button>
         <button
           type="button"
@@ -199,7 +216,7 @@ export function TopBar3D({ theme, onToggleTheme, onHelp }: TopBar3DProps) {
         <input
           ref={fileInput}
           type="file"
-          accept=".json,application/json"
+          accept=".json,.std,.csv,.txt,application/json"
           hidden
           aria-label="Open a model file"
           onChange={(e) => {

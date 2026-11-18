@@ -1,7 +1,8 @@
 // End-to-end test of FrameForge: opens the app in headless Chromium and exercises examples
 // (3D and the converted 2D ones), tools, plane-frame mode with node dragging, generators, result
 // views, IS 800 design, modal analysis, influence lines, the PDF report, files, share links,
-// the migration of old 2D files / links / autosaves, themes and the phone layout.
+// the migration of old 2D files / links / autosaves, importing models (Import dialog, STAAD
+// files, ?model= URLs, window.frameforge and postMessage), themes and the phone layout.
 // Usage: node scripts/e2e3d.mjs [url] [screenshot-dir]
 //   (default url: the live GitHub Pages site; screenshots go to a temporary folder)
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -458,8 +459,23 @@ try {
   check('Save downloads a 3D project', saved.kind === 'space' && saved.members.length === 36);
   await page.selectOption('.example-picker', 'tower-25-bar');
   await page.setInputFiles('.topbar input[type="file"]', jsonPath);
-  await settle(300);
-  check('Open restores a 3D project', (await count('members')) === 36);
+  await page
+    .waitForFunction(
+      () => /\b36 members/.test(document.querySelector('.statusbar')?.textContent ?? ''),
+      null,
+      {
+        timeout: 5000,
+      },
+    )
+    .catch(() => undefined);
+  check(
+    'Open restores a 3D project',
+    (await count('members')) === 36,
+    `${await status()} | ${await page
+      .locator('.toasts')
+      .innerText()
+      .catch(() => '')} | dialog ${await page.locator('[data-testid="import-dialog"]').count()}`,
+  );
 
   const [png] = await Promise.all([
     page.waitForEvent('download'),
@@ -841,6 +857,205 @@ try {
   );
   await shot('09-phone');
   await page.setViewportSize({ width: 1440, height: 900 });
+
+  // ---- 9a. Bring your own model: Import dialog, ?model=, JavaScript API, postMessage ----
+  const dialog = page.locator('[data-testid="import-dialog"]');
+  const preview = () => page.locator('[data-testid="import-preview"]').innerText();
+  await button('.file-actions', 'Import').click();
+  check('Import opens the import dialog', (await dialog.count()) === 1);
+  await button('[data-testid="import-dialog"]', 'Fill with example').click();
+  await settle(200);
+  check(
+    'the example tables preview as a plane frame',
+    /Ready: 4 nodes · 3 members · 2 supports · 2 loads · plane frame/.test(await preview()),
+    await preview(),
+  );
+  const nodesBox = dialog.locator('textarea[aria-label="Nodes table"]');
+  await nodesBox.fill(`${await nodesBox.inputValue()}\n5,abc,0,0`);
+  await settle(200);
+  check(
+    'a bad row is reported with its line number and blocks the import',
+    /nodes line 6: Node "5" needs numeric x, y and z\./.test(await preview()) &&
+      (await button('[data-testid="import-dialog"]', 'Import').isDisabled()),
+  );
+  await nodesBox.fill((await nodesBox.inputValue()).replace('\n5,abc,0,0', ''));
+  await dialog.locator('select[aria-label="Length unit"]').selectOption('mm');
+  await settle(200);
+  check('units can be changed (4 m becomes 4 mm)', /Ready:/.test(await preview()));
+  await dialog.locator('select[aria-label="Length unit"]').selectOption('m');
+  await dialog.locator('input[aria-label="Model name"]').fill('Imported portal');
+  await shot('10-import-tables');
+  await button('[data-testid="import-dialog"]', 'Import').click();
+  await settle(400);
+  check(
+    'importing tables creates a new plane-frame model that solves',
+    (await dialog.count()) === 0 &&
+      (await count('nodes')) === 4 &&
+      (await count('members')) === 3 &&
+      (await page.locator('.plane-badge').count()) === 1 &&
+      (await page.locator('.project-name').innerText()).includes('Imported portal') &&
+      (await solved()),
+    await status(),
+  );
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+  await settle(300);
+  check('Undo returns to the model before the import', (await count('members')) !== 3);
+
+  const stdPath = join(tmp, 'portal-frame.std');
+  const sampleBase = new URL('samples/', url.split('#')[0].split('?')[0]).href;
+  const stdText = await (await fetch(new URL('portal-frame.std', sampleBase))).text();
+  writeFileSync(stdPath, stdText);
+  await page.setInputFiles('.topbar input[type="file"]', stdPath);
+  await settle(300);
+  check(
+    'Open with a .std file shows it in the import dialog',
+    (await dialog.count()) === 1 && /STAAD\.Pro input/.test(await dialog.innerText()),
+  );
+  const caseSelect = dialog.locator('select[aria-label="Load case"]');
+  check(
+    'a STAAD file with two load cases offers a choice',
+    (await caseSelect.locator('option').count()) === 2,
+  );
+  check(
+    'unsupported STAAD commands are listed as warnings',
+    /Load combinations are not imported/.test(await preview()),
+  );
+  await caseSelect.selectOption('2');
+  await settle(200);
+  await shot('11-import-staad');
+  await button('[data-testid="import-dialog"]', 'Import').click();
+  await settle(400);
+  check(
+    'the chosen STAAD load case is imported and solves',
+    (await count('members')) === 3 && (await count('loads')) === 1 && (await solved()),
+    await status(),
+  );
+
+  const page5 = await context.newPage();
+  watch(page5);
+  await page5.goto(`${url.split('#')[0].split('?')[0]}?model=samples/warren-truss.csv`, {
+    waitUntil: 'networkidle',
+  });
+  await page5.waitForSelector('.viewer3d canvas', { timeout: 20000 });
+  await page5
+    .locator('.project-name', { hasText: 'Warren truss' })
+    .waitFor({ timeout: 10000 })
+    .catch(() => undefined);
+  check(
+    '?model= imports a CSV bundle on load',
+    /15 members/.test(await page5.locator('.statusbar').innerText()) &&
+      (await page5.locator('.project-name').innerText()).includes('Warren truss'),
+  );
+  check('?model= is removed from the address afterwards', !page5.url().includes('model='));
+  const api = await page5.evaluate(async () => {
+    const ff = window.frameforge;
+    const report = ff.importStd(
+      'STAAD PLANE\nUNIT METER KN\nJOINT COORDINATES\n1 0 0 0; 2 4 0 0\nMEMBER INCIDENCES\n1 1 2\n' +
+        'MEMBER PROPERTY INDIAN\n1 TABLE ST ISMB300\nCONSTANTS\nE 2E8 ALL\nSUPPORTS\n1 FIXED\n' +
+        'LOAD 1\nJOINT LOAD\n2 FY -10\n',
+    );
+    const results = ff.analyze();
+    let error = null;
+    try {
+      ff.importCsv({ nodes: 'id,x,y\n1,zero,0' });
+    } catch (e) {
+      error = e.errors;
+    }
+    return { report, results, error, name: ff.getModel().name };
+  });
+  check(
+    'window.frameforge imports STAAD text and analyses it',
+    api.report.counts.members === 1 &&
+      Math.abs(api.results.reactions['1'].mz - 40) < 1e-6 &&
+      Math.abs(api.results.members['1'].start.Mz + 40) < 1e-6,
+    JSON.stringify(api.results.reactions['1']),
+  );
+  check(
+    'window.frameforge reports import errors with line numbers',
+    Array.isArray(api.error) && api.error[0] === 'nodes line 2: Node "1" needs numeric x, y and z.',
+    JSON.stringify(api.error),
+  );
+  await page5.close();
+
+  // An embedding page talks to FrameForge in an iframe by postMessage.
+  const page6 = await context.newPage();
+  watch(page6);
+  await page6.setContent(
+    `<iframe id="ff" src="${url.split('#')[0].split('?')[0]}" style="width:1000px;height:700px"></iframe>`,
+  );
+  const embedded = await page6.evaluate(async () => {
+    const frame = document.getElementById('ff').contentWindow;
+    const replies = [];
+    let ready = false;
+    window.addEventListener('message', (e) => {
+      if (e.data?.frameforge === 'ready') ready = true;
+      if (e.data?.frameforge === 'result') replies.push(e.data);
+    });
+    const wait = async (test) => {
+      for (let k = 0; k < 200 && !test(); k++) await new Promise((r) => setTimeout(r, 50));
+    };
+    await wait(() => ready);
+    const send = async (request) => {
+      const n = replies.length;
+      frame.postMessage(request, '*');
+      await wait(() => replies.length > n);
+      return replies[n];
+    };
+    const early = await send({ frameforge: 'getModel', id: 'r0' });
+    const model = {
+      nodes: [
+        { id: 'A', x: 0, y: 0 },
+        { id: 'B', x: 3, y: 0 },
+      ],
+      members: [{ id: 'AB', i: 'A', j: 'B', section: 'ISMB 250' }],
+      supports: [{ node: 'A', restraints: 'fixed' }],
+      loads: [{ kind: 'nodal', node: 'B', fy: -15 }],
+      plane: 'XY',
+    };
+    const load = await send({ frameforge: 'load', id: 1, model });
+    const analysed = await send({ frameforge: 'analyze', id: 2 });
+    const ignored = replies.length;
+    frame.postMessage({ type: 'load', model }, '*');
+    await new Promise((r) => setTimeout(r, 300));
+    return {
+      ready,
+      early,
+      load,
+      fy: analysed?.result?.reactions?.A?.fy,
+      ignored: replies.length === ignored,
+    };
+  });
+  check('an embedded FrameForge announces it is ready', embedded.ready);
+  check(
+    'postMessage reads are refused before the page loads a model',
+    embedded.early?.ok === false && embedded.early?.id === 'r0',
+  );
+  check(
+    'postMessage load and analyze work from the embedding page',
+    embedded.load?.ok === true && Math.abs(embedded.fy - 15) < 1e-9,
+    JSON.stringify(embedded.load),
+  );
+  check('messages of other shapes are ignored', embedded.ignored);
+  await page6.close();
+
+  // A model URL whose server does not allow cross-origin requests: a clear message.
+  const page7 = await context.newPage();
+  await page7.goto(
+    `${url.split('#')[0].split('?')[0]}?model=https://frameforge-no-such-host.invalid/frame.std`,
+    {
+      waitUntil: 'networkidle',
+    },
+  );
+  check(
+    'a blocked ?model= fetch says why',
+    await page7
+      .locator('.toasts', { hasText: 'cross-origin' })
+      .first()
+      .waitFor({ timeout: 10000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+  await page7.close();
 
   // ---- 9. The former 2D app's autosave is converted once ----
   const fresh = await browser.newContext({ viewport: { width: 1280, height: 800 } });

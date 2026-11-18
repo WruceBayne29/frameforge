@@ -104,6 +104,42 @@ function release(v: unknown, what: string): EndRelease | undefined {
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+const SUPPORT_TYPES: Record<string, Restraints6> = {
+  fixed: [true, true, true, true, true, true],
+  pinned: [true, true, true, false, false, false],
+  roller: [false, true, false, false, false, false],
+};
+
+/**
+ * Restraints of a support: six booleans [ux, uy, uz, rx, ry, rz] (the saved form), a name
+ * ("fixed", "pinned", "roller"), a six-character mask such as "111000", or an object
+ * `{ ux: true, … }` with the restrained directions.
+ */
+function parseRestraints(v: unknown, what: string): Restraints6 {
+  const malformed = (): never =>
+    fail(
+      `${what} needs restraints: six true/false values (ux, uy, uz, rx, ry, rz), ` +
+        '"fixed", "pinned", "roller" or a mask such as "111000".',
+    );
+  if (Array.isArray(v)) {
+    if (v.length !== 6 || !v.every((x) => typeof x === 'boolean')) return malformed();
+    return [...v] as Restraints6;
+  }
+  if (typeof v === 'string') {
+    const key = v.trim().toLowerCase();
+    if (SUPPORT_TYPES[key]) return [...SUPPORT_TYPES[key]];
+    if (/^[01]{6}$/.test(key)) return [...key].map((c) => c === '1') as Restraints6;
+    return malformed();
+  }
+  if (isObject(v)) {
+    const keys = ['ux', 'uy', 'uz', 'rx', 'ry', 'rz'];
+    if (Object.keys(v).some((k) => !keys.includes(k))) return malformed();
+    if (Object.values(v).some((x) => typeof x !== 'boolean')) return malformed();
+    return keys.map((k) => v[k] === true) as Restraints6;
+  }
+  return malformed();
+}
+
 /**
  * Tells a 3D project from a 2D one, given the text of a file or already-parsed JSON, so the
  * caller can pick `parseProject3D` or `parseProject`. Anything not marked as a space project
@@ -122,7 +158,17 @@ export function detectProjectKind(input: unknown): '2d' | '3d' {
   if (data.kind === PROJECT_KIND_3D) return '3d';
   if (data.kind !== undefined) return '2d';
   const filled = (v: unknown) => Array.isArray(v) && v.length > 0;
-  return filled(data.plates) || filled(data.solids) || Array.isArray(data.materials) ? '3d' : '2d';
+  if (filled(data.plates) || filled(data.solids) || Array.isArray(data.materials)) return '3d';
+  // Saved 2D files always carry the format tag; a model written by other software has none
+  // and is read as 3D (interchange JSON) unless its members are clearly 2D ones.
+  if (data.format !== undefined) return '2d';
+  const members = Array.isArray(data.members) ? data.members : [];
+  const twoD = members.some(
+    (m) =>
+      isObject(m) &&
+      (m.type === 'frame' || typeof m.releaseI === 'boolean' || typeof m.releaseJ === 'boolean'),
+  );
+  return twoD ? '2d' : '3d';
 }
 
 /** Validates arbitrary parsed JSON and returns a clean `Project3D`. */
@@ -185,7 +231,8 @@ export function parseProject3D(data: unknown): Project3D {
       id: str(raw.id, `${what} id`),
       i: needNode(raw.i, `${what} start`),
       j: needNode(raw.j, `${what} end`),
-      type: oneOf(raw.type, MEMBER_TYPES, `${what} type`),
+      // Interchange files may leave the type out: a member is a beam unless it says truss.
+      type: raw.type === undefined ? 'beam' : oneOf(raw.type, MEMBER_TYPES, `${what} type`),
       section: str(raw.section, `${what} section`),
       material: material(raw.material, what),
     };
@@ -248,17 +295,16 @@ export function parseProject3D(data: unknown): Project3D {
     if (!isObject(raw)) return fail(`Support ${k + 1} is malformed.`);
     const what = `Support ${k + 1}`;
     const node = needNode(raw.node, what);
-    const r = raw.restraints;
-    if (!Array.isArray(r) || r.length !== 6 || !r.every((v) => typeof v === 'boolean')) {
-      return fail(`${what} needs six true/false restraints (ux, uy, uz, rx, ry, rz).`);
-    }
+    const restraints = parseRestraints(raw.restraints ?? raw.type, what);
     if (seenSupports.has(node)) return;
     seenSupports.add(node);
-    supports.push({ node, restraints: [...r] as Restraints6 });
+    supports.push({ node, restraints });
   });
 
   /** A non-empty list of distinct ids of existing items. */
   const targets = (v: unknown, known: Set<string>, noun: string, what: string): string[] => {
+    // A single id (`"node": "3"` or `"nodes": "3"`) is accepted for a list of one.
+    if (typeof v === 'string') v = [v];
     if (!Array.isArray(v) || v.length === 0) return fail(`${what} needs a list of ${noun}s.`);
     if (v.length > MAX_ITEMS) return fail(`${what} has too many ${noun}s.`);
     const ids: string[] = [];
@@ -286,7 +332,7 @@ export function parseProject3D(data: unknown): Project3D {
         return {
           id,
           kind: 'nodal',
-          nodes: targets(raw.nodes, nodeIds, 'node', what),
+          nodes: targets(raw.nodes ?? raw.node, nodeIds, 'node', what),
           fx: optNum(raw.fx, `${what} fx`) ?? 0,
           fy: optNum(raw.fy, `${what} fy`) ?? 0,
           fz: optNum(raw.fz, `${what} fz`) ?? 0,
@@ -298,7 +344,7 @@ export function parseProject3D(data: unknown): Project3D {
         const load: ProjectLoad3D = {
           id,
           kind: 'distributed',
-          members: targets(raw.members, memberIds, 'member', what),
+          members: targets(raw.members ?? raw.member, memberIds, 'member', what),
           direction: oneOf(raw.direction, MEMBER_DIRECTIONS, `${what} direction`),
           w1: num(raw.w1, `${what} w1`),
         };
@@ -314,7 +360,7 @@ export function parseProject3D(data: unknown): Project3D {
         return {
           id,
           kind: 'point',
-          members: targets(raw.members, memberIds, 'member', what),
+          members: targets(raw.members ?? raw.member, memberIds, 'member', what),
           direction: oneOf(raw.direction, MEMBER_DIRECTIONS, `${what} direction`),
           P: num(raw.P, `${what} P`),
           a: num(raw.a, `${what} position`),
@@ -323,7 +369,7 @@ export function parseProject3D(data: unknown): Project3D {
         return {
           id,
           kind: 'moment',
-          members: targets(raw.members, memberIds, 'member', what),
+          members: targets(raw.members ?? raw.member, memberIds, 'member', what),
           direction: oneOf(raw.direction, MEMBER_DIRECTIONS, `${what} direction`),
           M: num(raw.M, `${what} M`),
           a: num(raw.a, `${what} position`),
@@ -332,7 +378,7 @@ export function parseProject3D(data: unknown): Project3D {
         return {
           id,
           kind: 'pressure',
-          plates: targets(raw.plates, plateIds, 'plate', what),
+          plates: targets(raw.plates ?? raw.plate, plateIds, 'plate', what),
           direction: oneOf(raw.direction, PLATE_DIRECTIONS, `${what} direction`),
           p: num(raw.p, `${what} pressure`),
         };
@@ -340,7 +386,7 @@ export function parseProject3D(data: unknown): Project3D {
         const load: ProjectLoad3D = {
           id,
           kind: 'platePoint',
-          plates: targets(raw.plates, plateIds, 'plate', what),
+          plates: targets(raw.plates ?? raw.plate, plateIds, 'plate', what),
           direction: oneOf(raw.direction, PLATE_DIRECTIONS, `${what} direction`),
           P: num(raw.P, `${what} P`),
           xi: optNum(raw.xi, `${what} xi`) ?? 0,
@@ -355,7 +401,7 @@ export function parseProject3D(data: unknown): Project3D {
         return {
           id,
           kind: 'face',
-          solids: targets(raw.solids, solidIds, 'solid', what),
+          solids: targets(raw.solids ?? raw.solid, solidIds, 'solid', what),
           face: oneOf(raw.face, FACES, `${what} face`),
           direction: oneOf(raw.direction, FACE_DIRECTIONS, `${what} direction`),
           p: num(raw.p, `${what} pressure`),
